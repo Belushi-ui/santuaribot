@@ -3,7 +3,6 @@ from discord.ext import commands
 from discord import app_commands
 import asyncio
 
-# Diccionario global para guardar los IDs de los mensajes de autoroles
 AUTOROLE_MESSAGE_IDS = {}
 
 class SantuariBot(commands.Bot):
@@ -15,77 +14,27 @@ class SantuariBot(commands.Bot):
 
     async def setup_hook(self):
         await self.tree.sync()
-        print("[INFO] Comandos sincronizados. ¡Santuari está listo para forjarse!")
+        print("[INFO] Comandos sincronizados. ¡El Nuevo Orden está listo!")
 
 bot = SantuariBot()
 
 @bot.event
 async def on_ready():
-    print('------------------------------------------------')
-    print(f'[INFO] Conectado en la terminal como {bot.user} 🏛️')
-    print('------------------------------------------------')
+    print(f'[INFO] Conectado como {bot.user} 🏛️')
 
 # ==========================================
-# 1. SISTEMA AUTOMÁTICO DE FRONTERAS (Ingreso)
-# ==========================================
-@bot.event
-async def on_member_join(member):
-    guild = member.guild
-    rol_ciudadano = discord.utils.get(guild.roles, name="Ciudadano")
-    rol_recien = discord.utils.get(guild.roles, name="Recién Arribados") # Creado manual abajo
-    
-    roles_a_dar = []
-    if rol_ciudadano: roles_a_dar.append(rol_ciudadano)
-    if rol_recien: roles_a_dar.append(rol_recien)
-    
-    if roles_a_dar:
-        await member.add_roles(*roles_a_dar)
-
-# ==========================================
-# 2. AUTO-REACCIONES Y STARBOARD (4 Estrellas)
+# 1. AUTO-REACCIONES Y STARBOARD
 # ==========================================
 @bot.event
 async def on_message(message):
-    if message.author.bot:
-        return
-    
-    # Auto-reacciones para código y arte
-    if message.attachments:
-        if message.channel.name in ["⌨️・tu-código", "🖌️・tus-dibujos"]:
-            await message.add_reaction("👍")
-            await message.add_reaction("👎")
-            
+    if message.author.bot: return
+    if message.attachments and message.channel.name in ["⌨️・tu-código", "🖌️・tus-dibujos"]:
+        await message.add_reaction("👍")
+        await message.add_reaction("👎")
     await bot.process_commands(message)
 
 @bot.event
 async def on_raw_reaction_add(payload):
-    # --- LÓGICA DE STARBOARD ---
-    if str(payload.emoji) == "⭐":
-        channel = bot.get_channel(payload.channel_id)
-        try:
-            message = await channel.fetch_message(payload.message_id)
-        except Exception:
-            return
-
-        reaction = discord.utils.get(message.reactions, emoji="⭐")
-        if reaction and reaction.count >= 4:
-            guild = bot.get_guild(payload.guild_id)
-            starboard_channel = discord.utils.get(guild.text_channels, name="⭐・starboard")
-            
-            if starboard_channel:
-                async for msg in starboard_channel.history(limit=50):
-                    if msg.embeds and f"ID: {message.id}" in msg.embeds[0].footer.text:
-                        return
-                
-                embed = discord.Embed(description=message.content, color=discord.Color.gold(), timestamp=message.created_at)
-                embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
-                embed.add_field(name="Origen", value=f"[Ir al mensaje]({message.jump_url})")
-                embed.set_footer(text=f"⭐ {reaction.count} | ID: {message.id}")
-                if message.attachments:
-                    embed.set_image(url=message.attachments[0].url)
-                await starboard_channel.send(embed=embed)
-
-    # --- LÓGICA DE AUTOROLES ---
     if payload.user_id == bot.user.id: return
     if payload.message_id in AUTOROLE_MESSAGE_IDS:
         guild = bot.get_guild(payload.guild_id)
@@ -108,206 +57,243 @@ async def on_raw_reaction_remove(payload):
             if rol: await member.remove_roles(rol)
 
 # ==========================================
-# 3. COMANDO DE REESTRUCTURACIÓN IMPERIAL
+# 2. COMANDO DEL APOCALIPSIS Y GÉNESIS
 # ==========================================
-@bot.tree.command(name="setup_santuari", description="Purga total y reconstrucción del Imperio de Santuari.")
+@bot.tree.command(name="setup_santuari", description="Purga absoluta y reconstrucción tipográfica del Imperio.")
 @discord.app_commands.default_permissions(administrator=True)
 async def setup_santuari(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=False)
+    await interaction.response.defer(ephemeral=True)
     guild = interaction.guild
 
-    await interaction.followup.send("⚠️ **Iniciando protocolo de purga y reconstrucción masiva. Discord puede tardar un par de minutos, por favor espera...** ⚙️")
+    try:
+        await interaction.followup.send("⚠️ **Iniciando el Apocalipsis de Santuari. Borrando toda existencia previa...** ⚙️", ephemeral=True)
+    except: pass
 
-    # --- A. PURGA DE CANALES VIEJOS ---
-    nombres_categorias = ["🏛️ Cancillería", "💬 Offtopic", "🔊 VC Offtopic", "💻 Linux & Coding", "🛠️ VC Asistencia", "🐉 Rol n Roll", "🎙️ VC Rol n Roll", "🎨 Arte y Filosofía", "🎧 VC Arte y filosofía", "👁️ Congreso VIP", "📁 Logs & Brigada"]
+    # --- A. PURGA TOTAL DE CANALES ---
+    nombres_categorias = ["🏛️ Cancillería", "📖 El Manifiesto", "💬 Offtopic", "🔊 VC Offtopic", "💻 Linux & Coding", "🛠️ VC Asistencia", "🐉 Rol n Roll", "🎙️ VC Rol n Roll", "🎨 Arte y Filosofía", "🎧 VC Arte y filosofía", "👁️ Congreso VIP", "📁 Logs & Brigada"]
     for cat in guild.categories:
         if cat.name in nombres_categorias:
-            for ch in cat.channels: await ch.delete()
-            await cat.delete()
+            for ch in cat.channels: 
+                try: await ch.delete()
+                except: pass
+            try: await cat.delete()
+            except: pass
 
-    # --- B. CREACIÓN DE ROLES (De menor a mayor jerarquía) ---
+    # --- B. PURGA TOTAL DE ROLES ---
+    for rol in guild.roles:
+        # No borrar @everyone, roles de bots o integraciones de Twitch/Patreon
+        if rol.name != "@everyone" and not rol.is_bot_managed() and not rol.is_premium_subscriber() and not rol.is_integration():
+            try: await rol.delete()
+            except: pass
+
+    # --- C. CREACIÓN DE ROLES (Tipografía 𝔻𝕠𝕓𝕝𝕖 𝕊𝕥𝕣𝕚𝕜𝕖 y Emojis) ---
     roles_base = [
-        ("Recién Arribados", 0x808080), # Gris base
-        ("Eventos", 0x2b2d31), ("Avisos", 0x2b2d31), ("Chat muerto", 0x2b2d31),
-        ("Hombre cis", 0x2b2d31), ("Mujer cis", 0x2b2d31), ("Transgénero", 0x2b2d31), ("No binarie", 0x2b2d31), ("Otro género", 0x2b2d31),
-        ("she/her", 0x2b2d31), ("he/him", 0x2b2d31), ("they/them", 0x2b2d31), ("Otros pronombres", 0x2b2d31),
-        ("Gay", 0x2b2d31), ("Lesbiana", 0x2b2d31), ("Bisexual", 0x2b2d31), ("Asexual", 0x2b2d31), ("Arromántico", 0x2b2d31), ("Otra sexualidad", 0x2b2d31),
-        ("14-17", 0x2b2d31), ("18-25", 0x2b2d31), ("25+", 0x2b2d31),
-        ("Norteamérica", 0x2b2d31), ("Sudamérica", 0x2b2d31), ("Europa", 0x2b2d31), ("Asia", 0x2b2d31),
-        ("🎸Arte y filosofía", 0x2b2d31), ("🐉 Rol n Roll", 0x2b2d31), ("🐧Linux & Coding", 0x2b2d31),
-        ("Color 10", 0x00BBF9), ("Color 9", 0xFEE440), ("Color 8", 0xF15BB5), ("Color 7", 0x00F5D4), 
-        ("Color 6", 0xFF9ED2), ("Color 5", 0x6A4C93), ("Color 4", 0x1982C4), ("Color 3", 0x8AC926), 
-        ("Color 2", 0xFFCA3A), ("Color 1", 0xFF595E),
-        ("⛓️ Presos políticos", 0x101010)
+        ("🆕 ℝ𝕖𝕔𝕚𝕖𝕟 𝔸𝕣𝕣𝕚𝕓𝕒𝕕𝕠", 0x808080),
+        ("📅 𝔼𝕧𝕖𝕟𝕥𝕠𝕤", 0x2b2d31), ("🔔 𝔸𝕧𝕚𝕤𝕠𝕤", 0x2b2d31), ("💀 ℂ𝕙𝕒𝕥 𝕄𝕦𝕖𝕣𝕥𝕠", 0x2b2d31),
+        
+        # Identidad
+        ("♂️ ℍ𝕠𝕞𝕓𝕣𝕖 𝕔𝕚𝕤", 0x2b2d31), ("♀️ 𝕄𝕦𝕛𝕖𝕣 𝕔𝕚𝕤", 0x2b2d31), ("🏳️‍⚧️ 𝕋𝕣𝕒𝕟𝕤𝕘𝕖𝕟𝕖𝕣𝕠", 0x2b2d31), ("👽 ℕ𝕠 𝕓𝕚𝕟𝕒𝕣𝕚𝕖", 0x2b2d31), ("🌀 𝕆𝕥𝕣𝕠 𝕘𝕖𝕟𝕖𝕣𝕠", 0x2b2d31),
+        ("📖 𝕤𝕙𝕖/𝕙𝕖𝕣", 0x2b2d31), ("📘 𝕙𝕖/𝕙𝕚𝕞", 0x2b2d31), ("📗 𝕥𝕙𝕖𝕪/𝕥𝕙𝕖𝕞", 0x2b2d31), ("📔 𝕆𝕥𝕣𝕠𝕤 𝕡𝕣𝕠𝕟𝕠𝕞𝕓𝕣𝕖𝕤", 0x2b2d31),
+        ("🌈 𝔾𝕒𝕪", 0x2b2d31), ("🌸 𝕃𝕖𝕤𝕓𝕚𝕒𝕟𝕒", 0x2b2d31), ("💜 𝔹𝕚𝕤𝕖𝕩𝕦𝕒𝕝", 0x2b2d31), ("🖤 𝔸𝕤𝕖𝕩𝕦𝕒𝕝", 0x2b2d31), ("🤍 𝔸𝕣𝕣𝕠𝕞𝕒𝕟𝕥𝕚𝕔𝕠", 0x2b2d31), ("✨ 𝕆𝕥𝕣𝕒 𝕤𝕖𝕩𝕦𝕒𝕝𝕚𝕕𝕒𝕕", 0x2b2d31),
+        
+        # Edades y Regiones
+        ("🎒 𝟙𝟜-𝟙𝟟", 0x2b2d31), ("🎓 𝟙𝟠-𝟚𝟝", 0x2b2d31), ("🍷 𝟚𝟝+", 0x2b2d31),
+        ("🦅 ℕ𝕠𝕣𝕥𝕖𝕒𝕞𝕖𝕣𝕚𝕔𝕒", 0x2b2d31), ("🦙 𝕊𝕦𝕕𝕒𝕞𝕖𝕣𝕚𝕔𝕒", 0x2b2d31), ("🏰 𝔼𝕦𝕣𝕠𝕡𝕒", 0x2b2d31), ("🐉 𝔸𝕤𝕚𝕒", 0x2b2d31),
+        
+        # Nichos
+        ("🎸 𝔸𝕣𝕥𝕖 𝕪 𝔽𝕚𝕝𝕠𝕤𝕠𝕗𝕚𝕒", 0x2b2d31), ("🎲 ℝ𝕠𝕝 𝕟 ℝ𝕠𝕝𝕝", 0x2b2d31), ("🐧 𝕃𝕚𝕟𝕦𝕩 & ℂ𝕠𝕕𝕚𝕟𝕘", 0x2b2d31),
+        
+        # Colores Estéticos
+        ("💖 ℂ𝕠𝕝𝕠𝕣 𝟙𝟘", 0x00BBF9), ("🤍 ℂ𝕠𝕝𝕠𝕣 𝟡", 0xFEE440), ("⚫ ℂ𝕠𝕝𝕠𝕣 𝟠", 0xF15BB5), ("🟤 ℂ𝕠𝕝𝕠𝕣 𝟟", 0x00F5D4), 
+        ("🟣 ℂ𝕠𝕝𝕠𝕣 𝟞", 0xFF9ED2), ("🔵 ℂ𝕠𝕝𝕠𝕣 𝟝", 0x6A4C93), ("🟢 ℂ𝕠𝕝𝕠𝕣 𝟜", 0x1982C4), ("🟡 ℂ𝕠𝕝𝕠𝕣 𝟛", 0x8AC926), 
+        ("🟠 ℂ𝕠𝕝𝕠𝕣 𝟚", 0xFFCA3A), ("🔴 ℂ𝕠𝕝𝕠𝕣 𝟙", 0xFF595E),
+        
+        ("⛓️ ℙ𝕣𝕖𝕤𝕠𝕤 ℙ𝕠𝕝𝕚𝕥𝕚𝕔𝕠𝕤", 0x101010)
     ]
     
     nombres_niveles = {
-        5: ("Nivel 5: Residente Oficial", 0x00FA9A),
-        10: ("Nivel 10: Inspector de Distrito", 0x00FA9A),
-        20: ("Nivel 20: Burócrata Menor", 0x00FA9A),
-        30: ("Nivel 30: Oficinista del Régimen", 0x00FA9A),
-        40: ("Nivel 40: Voz Cívica", 0x00FA9A),
-        50: ("Nivel 50: Ciudadano Ejemplar", 0x00FA9A),
-        60: ("Nivel 60: Comisionado", 0x00FA9A),
-        70: ("Nivel 70: Supervisor Cívico", 0x00FA9A),
-        80: ("Nivel 80: Ideólogo", 0x00FA9A),
-        90: ("Nivel 90: Asesor del Congreso", 0x00FA9A),
-        100: ("Nivel 100: Héroe de Santuari", 0x00FA9A)
+        5: ("🟢 ℕ𝕚𝕧𝕖𝕝 𝟝: ℝ𝕖𝕤𝕚𝕕𝕖𝕟𝕥𝕖", 0x00FA9A),
+        10: ("🟢 ℕ𝕚𝕧𝕖𝕝 𝟙𝟘: 𝕀𝕟𝕤𝕡𝕖𝕔𝕥𝕠𝕣", 0x00FA9A),
+        20: ("🟢 ℕ𝕚𝕧𝕖𝕝 𝟚𝟘: 𝔹𝕦𝕣𝕠𝕔𝕣𝕒𝕥𝕒", 0x00FA9A),
+        30: ("🟢 ℕ𝕚𝕧𝕖𝕝 𝟛𝟘: 𝕆𝕗𝕚𝕔𝕚𝕟𝕚𝕤𝕥𝕒", 0x00FA9A),
+        40: ("🟢 ℕ𝕚𝕧𝕖𝕝 𝟜𝟘: 𝕍𝕠𝕫 ℂ𝕚𝕧𝕚𝕔𝕒", 0x00FA9A),
+        50: ("🟢 ℕ𝕚𝕧𝕖𝕝 𝟝𝟘: ℂ𝕚𝕦𝕕𝕒𝕕𝕒𝕟𝕠 𝔼𝕛𝕖𝕞𝕡𝕝𝕒𝕣", 0x00FA9A),
+        100: ("🏆 ℕ𝕚𝕧𝕖𝕝 𝟙𝟘𝟘: ℍ𝕖𝕣𝕠𝕖", 0x00FA9A)
     }
 
     roles_gobierno = [
-        ("Aspirantes", 0xFF8C00), ("Ciudadano", 0x2E8B57), 
-        ("Lobby man", 0x800080), ("Ministros", 0x008000), ("Congreso", 0x4169E1), 
-        ("Presidente", 0xFFD700), ("Canciller", 0xDC143C)
+        ("🛡️ 𝔸𝕤𝕡𝕚𝕣𝕒𝕟𝕥𝕖𝕤", 0xFF8C00), ("🏛️ ℂ𝕚𝕦𝕕𝕒𝕕𝕒𝕟𝕠", 0x2E8B57), 
+        ("💼 𝕃𝕠𝕓𝕓𝕪 𝕞𝕒𝕟", 0x800080), ("⚖️ 𝕄𝕚𝕟𝕚𝕤𝕥𝕣𝕠𝕤", 0x008000), ("👁️ ℂ𝕠𝕟𝕘𝕣𝕖𝕤𝕠", 0x4169E1), 
+        ("🦅 ℙ𝕣𝕖𝕤𝕚𝕕𝕖𝕟𝕥𝕖", 0xFFD700), ("👑 ℂ𝕒𝕟𝕔𝕚𝕝𝕝𝕖𝕣", 0xDC143C)
     ]
 
     creados = {}
-    
-    # 1. Crear roles base y estéticos
     for nombre, color_hex in roles_base:
-        if not discord.utils.get(guild.roles, name=nombre):
-            rol = await guild.create_role(name=nombre, color=discord.Color(color_hex))
-            creados[nombre] = rol
-        else: creados[nombre] = discord.utils.get(guild.roles, name=nombre)
+        rol = await guild.create_role(name=nombre, color=discord.Color(color_hex))
+        creados[nombre] = rol
 
-    # 2. Crear roles de Nivel
     for lvl, (nombre, color_hex) in nombres_niveles.items():
-        if not discord.utils.get(guild.roles, name=nombre):
-            rol = await guild.create_role(name=nombre, color=discord.Color(color_hex))
-            creados[nombre] = rol
-        else: creados[nombre] = discord.utils.get(guild.roles, name=nombre)
+        rol = await guild.create_role(name=nombre, color=discord.Color(color_hex))
+        creados[nombre] = rol
 
-    # 3. Crear roles de Gobierno con Permisos
     for nombre, color_hex in roles_gobierno:
         perms = discord.Permissions.none()
-        if nombre == "Canciller": perms.update(administrator=True, manage_nicknames=True)
-        elif nombre in ["Presidente", "Ministros"]: perms.update(manage_messages=True, moderate_members=True, view_audit_log=True)
-        elif nombre == "Aspirantes": perms.update(manage_messages=True)
+        if "ℂ𝕒𝕟𝕔𝕚𝕝𝕝𝕖𝕣" in nombre: perms.update(administrator=True, manage_nicknames=True)
+        elif "ℙ𝕣𝕖𝕤𝕚𝕕𝕖𝕟𝕥𝕖" in nombre or "𝕄𝕚𝕟𝕚𝕤𝕥𝕣𝕠𝕤" in nombre: perms.update(manage_messages=True, moderate_members=True, view_audit_log=True)
+        elif "𝔸𝕤𝕡𝕚𝕣𝕒𝕟𝕥𝕖𝕤" in nombre: perms.update(manage_messages=True)
         
-        if not discord.utils.get(guild.roles, name=nombre):
-            rol = await guild.create_role(name=nombre, color=discord.Color(color_hex), permissions=perms, hoist=True)
-            creados[nombre] = rol
-        else: creados[nombre] = discord.utils.get(guild.roles, name=nombre)
+        rol = await guild.create_role(name=nombre, color=discord.Color(color_hex), permissions=perms, hoist=True)
+        creados[nombre] = rol
 
     everyone = guild.default_role
 
-    # --- C. CREACIÓN DE CANALES Y CATEGORÍAS ---
-    
-    # 1. 🏛️ Cancillería (Nadie escribe, excepto Canciller/Bot)
+    # --- D. CREACIÓN DE CANALES ---
+    # 1. 🏛️ Cancillería
     ow_cancilleria = {
         everyone: discord.PermissionOverwrite(send_messages=False, view_channel=True),
-        creados["Canciller"]: discord.PermissionOverwrite(send_messages=True),
-        creados["Presidente"]: discord.PermissionOverwrite(send_messages=True)
+        creados["👑 ℂ𝕒𝕟𝕔𝕚𝕝𝕝𝕖𝕣"]: discord.PermissionOverwrite(send_messages=True),
     }
     cat_cancilleria = await guild.create_category("🏛️ Cancillería")
-    canal_reglas = await cat_cancilleria.create_text_channel("📜・reglas", overwrites=ow_cancilleria)
+    canal_reglas = await cat_cancilleria.create_text_channel("📜・la-constitucion", overwrites=ow_cancilleria)
     await cat_cancilleria.create_text_channel("📖・el-diario-de-la-canciller", overwrites=ow_cancilleria)
     await cat_cancilleria.create_text_channel("🎫・tickets")
     canal_autoroles = await cat_cancilleria.create_text_channel("🎨・autoroles", overwrites=ow_cancilleria)
-    
-    # 2. 💬 Offtopic (Con restricciones por nivel)
+
+    # 2. 📖 El Manifiesto (Explicación de todo)
+    cat_manifiesto = await guild.create_category("📖 El Manifiesto")
+    canal_explicacion = await cat_manifiesto.create_text_channel("🗺️・guia-de-santuari", overwrites=ow_cancilleria)
+
+    # 3. 💬 Offtopic
     ow_general = {
         everyone: discord.PermissionOverwrite(view_channel=True),
-        creados["Ciudadano"]: discord.PermissionOverwrite(attach_files=False, embed_links=False),
+        creados["🏛️ ℂ𝕚𝕦𝕕𝕒𝕕𝕒𝕟𝕠"]: discord.PermissionOverwrite(attach_files=False, embed_links=False),
         creados[nombres_niveles[5][0]]: discord.PermissionOverwrite(attach_files=True, embed_links=True),
-        creados["⛓️ Presos políticos"]: discord.PermissionOverwrite(view_channel=False)
+        creados["⛓️ ℙ𝕣𝕖𝕤𝕠𝕤 ℙ𝕠𝕝𝕚𝕥𝕚𝕔𝕠𝕤"]: discord.PermissionOverwrite(view_channel=False)
     }
     ow_nivel5 = {
         everyone: discord.PermissionOverwrite(view_channel=False),
         creados[nombres_niveles[5][0]]: discord.PermissionOverwrite(view_channel=True),
-        creados["Canciller"]: discord.PermissionOverwrite(view_channel=True)
+        creados["👑 ℂ𝕒𝕟𝕔𝕚𝕝𝕝𝕖𝕣"]: discord.PermissionOverwrite(view_channel=True)
     }
     
     cat_offtopic = await guild.create_category("💬 Offtopic", overwrites=ow_general)
-    await cat_offtopic.create_text_channel("👋・presentacion")
-    await cat_offtopic.create_text_channel("💬・chat-offtopic")
-    await cat_offtopic.create_text_channel("🖼️・media-offtopic")
-    await cat_offtopic.create_text_channel("🫂・venting")
-    await cat_offtopic.create_text_channel("🪙・economia")
-    await cat_offtopic.create_text_channel("⭐・starboard", overwrites=ow_cancilleria) # Solo lectura
-    
+    for ch in ["👋・presentacion", "💬・chat-offtopic", "🖼️・media-offtopic", "🫂・venting", "🪙・economia"]: await cat_offtopic.create_text_channel(ch)
+    await cat_offtopic.create_text_channel("⭐・starboard", overwrites=ow_cancilleria)
     await cat_offtopic.create_text_channel("📸・selfies", overwrites=ow_nivel5)
     await cat_offtopic.create_text_channel("😂・memes-offtopic", overwrites=ow_nivel5)
 
-    # 3. 🔊 VC Offtopic
     cat_vc_offtopic = await guild.create_category("🔊 VC Offtopic")
     await cat_vc_offtopic.create_voice_channel("🎮 VC Gaming")
     await cat_vc_offtopic.create_voice_channel("🗣️ VC Charla")
-    for i in range(1, 4): await cat_vc_offtopic.create_voice_channel(f"👥 VC Duo {i}", user_limit=2)
-    for i in range(1, 3): await cat_vc_offtopic.create_voice_channel(f"👨‍👩‍👦 VC Trio {i}", user_limit=3)
 
-    # 4. Nichos (Linux, Rol, Arte) Bloqueados con Rol
-    ow_linux = {everyone: discord.PermissionOverwrite(view_channel=False), creados["🐧Linux & Coding"]: discord.PermissionOverwrite(view_channel=True)}
+    # 4. Nichos
+    ow_linux = {everyone: discord.PermissionOverwrite(view_channel=False), creados["🐧 𝕃𝕚𝕟𝕦𝕩 & ℂ𝕠𝕕𝕚𝕟𝕘"]: discord.PermissionOverwrite(view_channel=True)}
     cat_linux = await guild.create_category("💻 Linux & Coding", overwrites=ow_linux)
-    for ch in ["🐧・linux-general", "🖼️・linux-media", "🖥️・linux-setup", "😂・linux-coding-memes", "⌨️・tu-código", "🤝・proyectos-comunitarios"]: await cat_linux.create_text_channel(ch)
+    for ch in ["🐧・linux-general", "🖼️・linux-media", "🖥️・linux-setup", "😂・linux-coding-memes", "⌨️・tu-código"]: await cat_linux.create_text_channel(ch)
     
-    cat_vc_asis = await guild.create_category("🛠️ VC Asistencia", overwrites=ow_linux)
-    for i in range(1, 6): await cat_vc_asis.create_voice_channel(f"🔧 Asistencia {i}")
-
-    ow_rol = {everyone: discord.PermissionOverwrite(view_channel=False), creados["🐉 Rol n Roll"]: discord.PermissionOverwrite(view_channel=True)}
+    ow_rol = {everyone: discord.PermissionOverwrite(view_channel=False), creados["🎲 ℝ𝕠𝕝 𝕟 ℝ𝕠𝕝𝕝"]: discord.PermissionOverwrite(view_channel=True)}
     cat_rol = await guild.create_category("🐉 Rol n Roll", overwrites=ow_rol)
-    canal_reglas_rol = await cat_rol.create_text_channel("📜・reglas-rol-n-roll", overwrites=ow_cancilleria)
-    for ch in ["🎭・presenta-tu-personaje", "🎲・general-rol-n-roll", "🖼️・media-rol-n-roll", "📅・organiza-tu-party", "😂・memes-rol-n-roll", "📚・otros-juegos-de-rol"]: await cat_rol.create_text_channel(ch)
+    canal_reglas_rol = await cat_rol.create_text_channel("📜・leyes-de-la-taberna", overwrites=ow_cancilleria)
+    for ch in ["🎭・presenta-tu-personaje", "🎲・general-rol", "🖼️・media-rol", "📅・organiza-tu-party", "😂・memes-rol"]: await cat_rol.create_text_channel(ch)
     
-    cat_vc_rol = await guild.create_category("🎙️ VC Rol n Roll", overwrites=ow_rol)
-    for i in range(1, 11): await cat_vc_rol.create_voice_channel(f"🪵 Mesa {i}", user_limit=5)
-
-    ow_arte = {everyone: discord.PermissionOverwrite(view_channel=False), creados["🎸Arte y filosofía"]: discord.PermissionOverwrite(view_channel=True)}
+    ow_arte = {everyone: discord.PermissionOverwrite(view_channel=False), creados["🎸 𝔸𝕣𝕥𝕖 𝕪 𝔽𝕚𝕝𝕠𝕤𝕠𝕗𝕚𝕒"]: discord.PermissionOverwrite(view_channel=True)}
     cat_arte = await guild.create_category("🎨 Arte y Filosofía", overwrites=ow_arte)
     for ch in ["🎸・general-arte", "🖼️・media-arte", "😂・memes-arte", "📚・tu-biblioteca", "🖌️・tus-dibujos", "🎵・musica"]: await cat_arte.create_text_channel(ch)
-    
-    cat_vc_arte = await guild.create_category("🎧 VC Arte y filosofía", overwrites=ow_arte)
-    for i in range(1, 4): await cat_vc_arte.create_voice_channel(f"🎵 Música 3p - {i}", user_limit=3)
 
-    # 5. ZONAS CLASIFICADAS (Congreso VIP y Logs)
-    ow_congreso = {everyone: discord.PermissionOverwrite(view_channel=False), creados["Congreso"]: discord.PermissionOverwrite(view_channel=True), creados["Canciller"]: discord.PermissionOverwrite(view_channel=True)}
+    # 5. VIP y Logs
+    ow_congreso = {everyone: discord.PermissionOverwrite(view_channel=False), creados["👁️ ℂ𝕠𝕟𝕘𝕣𝕖𝕤𝕠"]: discord.PermissionOverwrite(view_channel=True), creados["👑 ℂ𝕒𝕟𝕔𝕚𝕝𝕝𝕖𝕣"]: discord.PermissionOverwrite(view_channel=True)}
     cat_congreso = await guild.create_category("👁️ Congreso VIP", overwrites=ow_congreso)
     await cat_congreso.create_text_channel("🍷・sala-del-congreso")
-    await cat_congreso.create_voice_channel("👑 Junta Ministerial")
 
-    ow_logs = {everyone: discord.PermissionOverwrite(view_channel=False), creados["Aspirantes"]: discord.PermissionOverwrite(view_channel=True), creados["Ministros"]: discord.PermissionOverwrite(view_channel=True), creados["Canciller"]: discord.PermissionOverwrite(view_channel=True)}
+    ow_logs = {everyone: discord.PermissionOverwrite(view_channel=False), creados["⚖️ 𝕄𝕚𝕟𝕚𝕤𝕥𝕣𝕠𝕤"]: discord.PermissionOverwrite(view_channel=True), creados["👑 ℂ𝕒𝕟𝕔𝕚𝕝𝕝𝕖𝕣"]: discord.PermissionOverwrite(view_channel=True)}
     cat_logs = await guild.create_category("📁 Logs & Brigada", overwrites=ow_logs)
-    await cat_logs.create_text_channel("🗄️・auditoria-y-logs")
+    canal_auditoria = await cat_logs.create_text_channel("🗄️・auditoria-y-logs")
 
-    # --- D. INYECCIÓN DE REGLAS (Igual a tu código) ---
-    embed_reglas = discord.Embed(title="🏛️ Constitución de Santuari", color=0x1982C4, description="**1. Respeto Total (Cero Tolerancia):** Santuari es un espacio LGBTQ+ friendly. Cualquier comentario de odio, transfobia, homofobia, racismo o acoso resulta en exilio inmediato.\n\n**2. El Humor es Legal, pero sé inteligente:** El shitposting, el sarcasmo y las bromas son bienvenidos en Offtopic. Pero la comedia tiene un límite cuando cruza al acoso personal.\n\n**3. Uso Correcto de Canales:** Los memes van en memes, el código en código. Prohibido subir contenido +18 o gore.\n\n**4. El Congreso y los Ministerios:** El Lobby man, los Ministros y la Canciller tienen la última palabra.\n\n**5. Sistema de Tickets:** Falsificar o abusar de los tickets es un delito federal.")
+    # --- E. INYECCIÓN DE REGLAS EXTREMAS ---
+    reglas_texto = (
+        "**ESTATUTOS ABSOLUTOS DEL IMPERIO DE SANTUARI**\n\n"
+        "**ARTÍCULO I: LA SUPREMACÍA DE LA CANCILLER** 👑\n"
+        "Santuari **NO es una democracia**. Este proyecto es propiedad intelectual, estructural y absoluta de la Canciller Adeline. Su palabra es ley, su decisión es final, inapelable e indiscutible. Si la Canciller decide alterar una regla, banear a un usuario o reestructurar el servidor, se hará sin derecho a réplica.\n\n"
+        "**ARTÍCULO II: ZONA SEGURA (CERO TOLERANCIA)** 🛡️\n"
+        "Este es un refugio estrictamente LGBTQ+ Friendly. Cualquier mínimo asomo de homofobia, transfobia, racismo, machismo, odio o acoso directo resultará en exilio inmediato y permanente. Aquí no hay 'segundas oportunidades' para el odio.\n\n"
+        "**ARTÍCULO III: EL LÍMITE DE LA COMEDIA** 🎭\n"
+        "El *shitposting*, los baits, el humor negro y el sarcasmo son el alma de la zona Offtopic. Eres libre de ser una *jodedora*, PERO la línea se traza en el ataque personal. Aprende a leer la habitación; si tu 'broma' es hostigamiento continuo, conocerás las celdas de los Presos Políticos.\n\n"
+        "**ARTÍCULO IV: SEGREGACIÓN DE CONTENIDO** 🗂️\n"
+        "Respeta los nichos. Código en código, memes en memes, rol en rol. Queda terminantemente prohibido el contenido NSFW explícito (+18) o Gore en cualquier rincón público del servidor. Romper esto es ban directo de IP visual.\n\n"
+        "**ARTÍCULO V: BUROCRACIA Y TICKETS** 🎫\n"
+        "El staff (Ministros, Presidente, Aspirantes) actúa bajo la voluntad del Congreso y la Canciller. Faltarles al respeto es un delito federal. Si tienes un problema real, abre un Ticket. Si abres un Ticket para trollear, serás silenciado indefinidamente."
+    )
+    embed_reglas = discord.Embed(title="📜 LA CONSTITUCIÓN DE SANTUARI", color=0xDC143C, description=reglas_texto)
+    embed_reglas.set_footer(text="Dictado y firmado por la Canciller Adeline.")
     await canal_reglas.send(embed=embed_reglas)
-    
-    embed_rol_reglas = discord.Embed(title="🐉 Leyes de la Taberna (Rol n Roll)", color=0xFF595E, description="**1. Regla del Consentimiento:** Cero romance o dinámicas PvP si el otro jugador no está 100% de acuerdo OOC.\n**2. La Palabra del DM es Ley.**\n**3. Compromiso con la Party:** Sé puntual.\n**4. Separa Jugador de Personaje.**")
-    await canal_reglas_rol.send(embed=embed_rol_reglas)
 
-    # --- E. EMBEDS DE AUTOROLES Y GOBIERNO ---
+    reglas_rol = (
+        "**EL CÓDIGO DE SANGRE DE LA TABERNA**\n\n"
+        "**1. LA LEY DE HIERRO DEL CONSENTIMIENTO OOC (Out of Character):** 🛑\n"
+        "No existe el romance forzado. No existe el PvP (jugador contra jugador) forzado. Si intentas robar, atacar, o iniciar una dinámica romántica/sexual con el personaje de otro jugador SIN que la persona detrás de la pantalla haya aceptado clara y explícitamente, serás vetado del Rol permanentemente.\n\n"
+        "**2. LA INFALIBILIDAD DEL DUNGEON MASTER:** 🎲\n"
+        "Detrás de la pantalla, el DM es Dios. Si el DM dice que tu hechizo falla, falla. Si el DM prohíbe el uso de manuales homebrew o razas rotas, lo acatas. No se permite detener el flujo del juego para discutir reglas durante 30 minutos.\n\n"
+        "**3. JUGADOR ≠ PERSONAJE (Metagaming):** 🎭\n"
+        "Si mi Pícaro traiciona a tu Paladín por oro, es rol. No te enojes conmigo en el chat general ni lleves rencores personales al Offtopic. Del mismo modo, tu personaje NO SABE lo que tú sabes; no uses información externa para ganar ventaja en el juego.\n\n"
+        "**4. EL JURAMENTO DE LA PARTY:** 🤝\n"
+        "D&D y los RPGs son compromisos. Si te inscribes en una campaña, tu deber es asistir. Si faltas sin avisar y dejas a tus compañeros vendidos frente al dragón, el DM tiene derecho a convertir a tu personaje en un NPC sacrificable."
+    )
+    embed_rol = discord.Embed(title="🐉 LEYES DE LA TABERNA (Rol n Roll)", color=0xFF8C00, description=reglas_rol)
+    await canal_reglas_rol.send(embed=embed_rol)
+
+    # --- F. CANAL DE EXPLICACIÓN (MANIFIESTO) ---
+    texto_guia = (
+        "**BIENVENIDO A SANTUARI: GUÍA DE SUPERVIVENCIA**\n\n"
+        "Este servidor es una **meritocracia estética** diseñada por y para su creadora, la **Canciller Adeline**, quien posee la autoridad absoluta sobre cada byte de información aquí dentro. Aquí te explicamos cómo funciona nuestro mundo:\n\n"
+        "**¿Cómo gano permisos? (Sistema de XP)** 📈\n"
+        "Al entrar eres un *Recién Arribado* con derechos básicos. Conforme interactúes en los canales de texto, subirás de nivel. Al llegar al **Nivel 5**, ganarás el derecho de enviar imágenes y desbloquearás los canales oscuros de `#📸・selfies` y `#😂・memes-offtopic`.\n\n"
+        "**Los Ministerios (Roles del Staff):** ⚖️\n"
+        "• **Canciller 👑:** Adeline. La creadora. Dueña de la última palabra.\n"
+        "• **Presidente 🦅 / Congreso 👁️:** La élite de confianza, inmunes a la moderación.\n"
+        "• **Ministros ⚖️:** Moderadores con el dedo en el botón de Ban.\n"
+        "• **Aspirantes 🛡️:** En entrenamiento, vigilan que cumplas la Constitución.\n\n"
+        "**Canales de Nicho:** 📚\n"
+        "Para no saturar el servidor, canales como **Linux, Arte y Rol** están ocultos. Ve al canal de `#🎨・autoroles` y reclama el rol correspondiente para que la categoría aparezca mágicamente en tu barra lateral."
+    )
+    embed_guia = discord.Embed(title="🗺️ MAPA DEL IMPERIO", color=0x1982C4, description=texto_guia)
+    await canal_explicacion.send(embed=embed_guia)
+
+    # --- G. AUTOROLES CON MENCIONES EXACTAS ---
     global AUTOROLE_MESSAGE_IDS
 
-    # Embed 1: Explicación del Gobierno y Niveles
-    embed_gov = discord.Embed(title="🏛️ Estructura del Régimen y Beneficios Cívicos", color=0xDC143C, description="Conoce el orden jerárquico de nuestra Nación. Tu comportamiento dicta tu ascenso o tu caída a los sótanos de la prisión.")
-    embed_gov.add_field(name="👑 Altas Esferas (Moderación y Control)", value="**Canciller & Presidente:** Dueños absolutos. Modifican apodos y leyes.\n**Congreso:** Élite inmune a la auto-moderación. Tienen canales ocultos.\n**Ministros:** Moderadores con capacidad de banear.\n**Aspirantes:** Moderadores en prueba, vigilan el chat.", inline=False)
-    embed_gov.add_field(name="📜 Sistema de Niveles Cívicos", value="Al chatear ganarás XP. Subir de nivel otorga beneficios:\n\n🟢 **Nivel 5:** Desbloquea el acceso para ver y postear en `#📸・selfies` y `#😂・memes-offtopic`. Permite enviar imágenes en chat general.\n🔵 **Niveles 10 al 100:** Roles cosméticos exclusivos que demuestran tu estatus de oficinista a Héroe Nacional.", inline=False)
-    embed_gov.add_field(name="⛓️ Presos Políticos", value="Ciudadanos exiliados. Pierden acceso a todos los canales excepto a su celda.", inline=False)
-    await canal_autoroles.send(embed=embed_gov)
+    async def mandar_autorol(titulo, color, diccionario):
+        desc = "Reacciona al emoji para obtener tu rol y asignarlo a tu perfil:\n\n"
+        for emoji, nombre_rol in diccionario.items():
+            rol_obj = creados.get(nombre_rol)
+            if rol_obj:
+                desc += f"{emoji} ➔ {rol_obj.mention}\n"
+        
+        embed = discord.Embed(title=titulo, color=color, description=desc)
+        msg = await canal_autoroles.send(embed=embed)
+        for emoji in diccionario.keys(): await msg.add_reaction(emoji)
+        AUTOROLE_MESSAGE_IDS[msg.id] = diccionario
 
-    # Embed 2: Colores
-    embed_col = discord.Embed(title="🎨 Ministerio de Identidad: Colores", color=0x2b2d31, description="Reacciona para obtener el color de tu nombre en el chat.")
-    msg_col = await canal_autoroles.send(embed=embed_col)
-    dic_col = {"🔴": "Color 1", "🟠": "Color 2", "🟡": "Color 3", "🟢": "Color 4", "🔵": "Color 5", "🟣": "Color 6", "🟤": "Color 7", "⚫": "Color 8", "⚪": "Color 9", "💖": "Color 10"}
-    for emoji in dic_col.keys(): await msg_col.add_reaction(emoji)
-    AUTOROLE_MESSAGE_IDS[msg_col.id] = dic_col
+    # 1. Regiones
+    await mandar_autorol("🌎 Ministerio de Fronteras: Tu Región", 0x1982C4, {"🦅": "🦅 ℕ𝕠𝕣𝕥𝕖𝕒𝕞𝕖𝕣𝕚𝕔𝕒", "🦙": "🦙 𝕊𝕦𝕕𝕒𝕞𝕖𝕣𝕚𝕔𝕒", "🏰": "🏰 𝔼𝕦𝕣𝕠𝕡𝕒", "🐉": "🐉 𝔸𝕤𝕚𝕒"})
+    
+    # 2. Edades
+    await mandar_autorol("⏳ Ministerio del Tiempo: Tu Edad", 0xFF8C00, {"🎒": "🎒 𝟙𝟜-𝟙𝟟", "🎓": "🎓 𝟙𝟠-𝟚𝟝", "🍷": "🍷 𝟚𝟝+"})
+    
+    # 3. Género
+    await mandar_autorol("⚧️ Ministerio de Identidad: Género", 0xFF9ED2, {"♂️": "♂️ ℍ𝕠𝕞𝕓𝕣𝕖 𝕔𝕚𝕤", "♀️": "♀️ 𝕄𝕦𝕛𝕖𝕣 𝕔𝕚𝕤", "🏳️‍⚧️": "🏳️‍⚧️ 𝕋𝕣𝕒𝕟𝕤𝕘𝕖𝕟𝕖𝕣𝕠", "👽": "👽 ℕ𝕠 𝕓𝕚𝕟𝕒𝕣𝕚𝕖", "🌀": "🌀 𝕆𝕥𝕣𝕠 𝕘𝕖𝕟𝕖𝕣𝕠"})
+    
+    # 4. Pronombres
+    await mandar_autorol("🗣️ Ministerio de Identidad: Pronombres", 0x8AC926, {"📖": "📖 𝕤𝕙𝕖/𝕙𝕖𝕣", "📘": "📘 𝕙𝕖/𝕙𝕚𝕞", "📗": "📗 𝕥𝕙𝕖𝕪/𝕥𝕙𝕖𝕞", "📔": "📔 𝕆𝕥𝕣𝕠𝕤 𝕡𝕣𝕠𝕟𝕠𝕞𝕓𝕣𝕖𝕤"})
+    
+    # 5. Sexualidad
+    await mandar_autorol("🌈 Ministerio de Identidad: Orientación", 0x6A4C93, {"🌈": "🌈 𝔾𝕒𝕪", "🌸": "🌸 𝕃𝕖𝕤𝕓𝕚𝕒𝕟𝕒", "💜": "💜 𝔹𝕚𝕤𝕖𝕩𝕦𝕒𝕝", "🖤": "🖤 𝔸𝕤𝕖𝕩𝕦𝕒𝕝", "🤍": "🤍 𝔸𝕣𝕣𝕠𝕞𝕒𝕟𝕥𝕚𝕔𝕠", "✨": "✨ 𝕆𝕥𝕣𝕒 𝕤𝕖𝕩𝕦𝕒𝕝𝕚𝕕𝕒𝕕"})
+    
+    # 6. Nichos
+    await mandar_autorol("📚 Clasificación de Intereses", 0x2E8B57, {"🎸": "🎸 𝔸𝕣𝕥𝕖 𝕪 𝔽𝕚𝕝𝕠𝕤𝕠𝕗𝕚𝕒", "🎲": "🎲 ℝ𝕠𝕝 𝕟 ℝ𝕠𝕝𝕝", "🐧": "🐧 𝕃𝕚𝕟𝕦𝕩 & ℂ𝕠𝕕𝕚𝕟𝕘"})
+    
+    # 7. Colores
+    await mandar_autorol("🎨 Paleta del Régimen: Colores", 0xFFD700, {"🔴": "🔴 ℂ𝕠𝕝𝕠𝕣 𝟙", "🟠": "🟠 ℂ𝕠𝕝𝕠𝕣 𝟚", "🟡": "🟡 ℂ𝕠𝕝𝕠𝕣 𝟛", "🟢": "🟢 ℂ𝕠𝕝𝕠𝕣 𝟜", "🔵": "🔵 ℂ𝕠𝕝𝕠𝕣 𝟝", "🟣": "🟣 ℂ𝕠𝕝𝕠𝕣 𝟞", "🟤": "🟤 ℂ𝕠𝕝𝕠𝕣 𝟟", "⚫": "⚫ ℂ𝕠𝕝𝕠𝕣 𝟠", "🤍": "🤍 ℂ𝕠𝕝𝕠𝕣 𝟡", "💖": "💖 ℂ𝕠𝕝𝕠𝕣 𝟙𝟘"})
 
-    # Embed 3: Géneros y Pronombres
-    embed_gen = discord.Embed(title="⚧️ Ministerio de Identidad: Género y Pronombres", color=0x2b2d31, description="Selecciona tu clasificación demográfica.")
-    msg_gen = await canal_autoroles.send(embed=embed_gen)
-    dic_gen = {"👨": "Hombre cis", "👩": "Mujer cis", "🏳️‍⚧️": "Transgénero", "👽": "No binarie", "📖": "he/him", "📗": "she/her", "📘": "they/them"}
-    for emoji in dic_gen.keys(): await msg_gen.add_reaction(emoji)
-    AUTOROLE_MESSAGE_IDS[msg_gen.id] = dic_gen
-
-    # Embed 4: Nichos
-    embed_nichos = discord.Embed(title="📚 Clasificación de Intereses", color=0x2b2d31, description="Desbloquea las categorías secretas del servidor.")
-    embed_nichos.add_field(name="Opciones", value="🐧 ➔ Linux & Coding\n🐉 ➔ Rol n Roll\n🎸 ➔ Arte y Filosofía")
-    msg_nichos = await canal_autoroles.send(embed=embed_nichos)
-    dic_nichos = {"🐧": "🐧Linux & Coding", "🐉": "🐉 Rol n Roll", "🎸": "🎸Arte y filosofía"}
-    for emoji in dic_nichos.keys(): await msg_nichos.add_reaction(emoji)
-    AUTOROLE_MESSAGE_IDS[msg_nichos.id] = dic_nichos
-
-    await interaction.followup.send("🏛️✨ **¡SANTUARI HA SIDO FORJADO COMPLETAMENTE!** Todos los canales, roles, candados VIP y autoroles están operativos.")
+    await canal_auditoria.send("👑✨ **¡SANTUARI HA SIDO FORJADO!** La visión de la Canciller Adeline se ha materializado con éxito. Roles, tipografías y reglas operativas al 100%.")
 
 bot.run("MTUxODEzMzM3MjA2MzMxODE2Nw.GVPhGm.JDaB4RjnYNZ_Pv8KJkrv3axIfsYy2aMavNMdU8")
