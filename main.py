@@ -191,4 +191,4 @@ async def setup_santuari(interaction: discord.Interaction):
     await interaction.followup.send("¡El Imperio de Santuari ha sido forjado con éxito! 🏛️✨ Todos los canales, roles y reglas están listos.")
 
 # ¡Pon tu token aquí abajo!
-bot.run("MTUxODEzMzM3MjA2MzMxODE2Nw.GqE78k.BQtJyGl_D21Zp2ilRu1-43H0eNUMQ9YOFZE7hs")
+bot.run("MTUxODEzMzM3MjA2MzMxODE2Nw.GVPhGm.JDaB4RjnYNZ_Pv8KJkrv3axIfsYy2aMavNMdU8")
