@@ -233,7 +233,7 @@ async def tienda_eliminar(interaction: discord.Interaction, nombre: str):
 # =========================================================================
 # 🚀 INICIO DEL BOT
 # =========================================================================
-token = os.environ.get("MTUxODEzMzM3MjA2MzMxODE2Nw.G_yKfi.8N9zk7lp7NubmVeGj1bq4ZDsBDYivVpVizHgS4")
+token = os.environ.get("MTUxODEzMzM3MjA2MzMxODE2Nw.Gjg-Iq.UEvsOxKd1L5Zeqf_a2L1mo-YqUYrgINdoD2SjY")
 if token:
     bot.run(token)
 else:
