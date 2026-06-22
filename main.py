@@ -3,15 +3,16 @@ from discord import app_commands
 import os
 import random
 import motor.motor_asyncio
+import certifi  # 🛡️ Mantener importado para romper el bloqueo SSL
 
 # =========================================================================
 # ⚙️ CONFIGURACIÓN IMPERIAL (¡LLENA ESTOS DATOS!)
 # =========================================================================
-ID_SERVIDOR = 1517885569231749240       # ID de tu servidor (Para que los comandos salgan al instante)
-ID_CANCILLER = 1518298260479938783       # Tu ID personal de Discord (Para mencionarte en compras)
-ID_ROL_AUTOROL = 1518298254767427855    # ID del rol que se da al entrar al servidor
+ID_SERVIDOR = 1517885569231749240        # ID de tu servidor
+ID_CANCILLER = 1518298260479938783       # Tu ID personal de Discord
+ID_ROL_AUTOROL = 1518298254767427855     # ID del rol que se da al entrar al servidor
 ID_CANAL_STARBOARD = 1518298279715017016 # ID del canal donde irán los mensajes estrella
-ID_BOT_BUMP = 302050872383242240        # ID de Disboard (Normalmente es este)
+ID_BOT_BUMP = 302050872383242240         # ID de Disboard
 
 ID_ROL_CONGRESISTA = 1518298258382913748 # ROL VIP para más monedas
 
@@ -39,9 +40,13 @@ class SantuariBot(discord.Client):
         # Conexión a la Bóveda de MongoDB
         mongo_uri = os.environ.get("MONGO_URI")
         if mongo_uri:
-            cluster = motor.motor_asyncio.AsyncIOMotorClient(mongo_uri)
+            # 🛡️ PARCHE APLICADO: Forzamos el uso de certifi para evitar fallos de TLS en Railway
+            cluster = motor.motor_asyncio.AsyncIOMotorClient(
+                mongo_uri,
+                tlsCAFile=certifi.where()
+            )
             self.db = cluster["SantuariDB"] 
-            print("💾 Bóveda de MongoDB conectada exitosamente.")
+            print("💾 Bóveda de MongoDB connected exitosamente con SSL validado.")
             await self._iniciar_tienda()
         else:
             print("⚠️ ADVERTENCIA: No se encontró la MONGO_URI.")
