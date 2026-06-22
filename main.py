@@ -23,14 +23,26 @@ ROLES_INMUNES = [
     1518298253181845685  # Élite
 ]
 
-# 🎖️ DICCIONARIO DE ROLES POR NIVEL
+# 🎖️ DICCIONARIO DE ROLES POR NIVEL (Tipografía Doble Strike)
 ROLES_NIVEL = {
-    5: 1518298247951548426,
-    10: 1518298248706527312,
-    20: 1518298249583399114,
-    30: 1518298250459873561,
-    40: 1518298251231756328,
-    100: 1518298252758225049
+    5: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟛: ℝ𝕖𝕤𝕚𝕕𝕖𝕟𝕥𝕖",   # Se busca por nombre dinámico en el gremio
+    10: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟙𝟘: 𝕀𝕟𝕤𝕡𝕖𝕔𝕥𝕠𝕣",
+    20: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟚𝟘: 𝔹𝕦𝕣𝕠𝕔𝕣𝕒𝕥𝕒",
+    30: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟛𝟘: 𝕆𝕗𝕚𝕔𝕚𝕟𝕚𝕤𝕥𝕒",
+    40: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟜𝟘: 𝕍𝕠𝕫 ℂ𝕚𝕧𝕚𝕔𝕒",
+    50: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟛𝟘: ℂ𝕚𝕦𝕕𝕒𝕕𝕒𝕟𝕠 𝔼𝕛𝕖𝕞𝕡𝕝𝕒𝕣",
+    100: "🏆 ℕ𝕚𝕧𝕖𝕝 𝟙𝟘𝟘: ℍ𝕖𝕣𝕠𝕖"
+}
+
+# 🎭 DICCIONARIOS DE CONFIGURACIÓN DE AUTOROLES (Tipografía Doble Strike)
+DICCIONARIO_AUTOROLES = {
+    "Regiones": {"🦅": "🦅 ℕ𝕠𝕣𝕥𝕖𝕒𝕞𝕖𝕣𝕚𝕔𝕒", "🦙": "🦙 𝕊𝕦𝕕𝕒𝕞𝕖𝕣𝕚𝕔𝕒", "🏰": "🏰 𝔼𝕦𝕣𝕠𝕡𝕒", "🐉": "🐉 𝔸𝕤𝕚𝕒"},
+    "Edades": {"🎒": "🎒 𝟙𝟜-𝟙𝟟", "🎓": "🎓 𝟙𝟠-𝟚𝟝", "🍷": "🍷 𝟚𝟝+"},
+    "Generos": {"♂️": "♂️ ℍ𝕠𝕞𝕓𝕣𝕖 𝕔𝕚𝕤", "♀️": "♀️ 𝕄𝕦𝕛𝕖𝕣 𝕔𝕚𝕤", "🏳️‍⚧️": "🏳️‍⚧️ 𝕋𝕣𝕒𝕟𝕤𝕘𝕖𝕟𝕖𝕣𝕠", "👽": "👽 ℕ𝕠 𝕓𝕚𝕟𝕒𝕣𝕚𝕖", "🌀": "🌀 𝕆𝕥𝕣𝕠 𝕘𝕖𝕟𝕖𝕣𝕠"},
+    "Pronombres": {"📖": "📖 𝕤𝕙𝕖/𝕙𝕖𝕣", "📘": "📘 𝕙𝕖/𝕙𝕚𝕞", "📗": "📗 𝕥𝕙𝕖𝪪/𝕥𝕙𝕖𝕞", "📔": "📔 𝕆𝕥𝕣ос 𝕡𝕣𝕠𝕟𝕠𝕞𝕓𝕣𝕖𝕤"},
+    "Sexualidades": {"🌈": "🌈 𝔾𝕒𝕪", "🌸": "🌸 𝕃𝕖𝕤𝕓𝕚𝕒𝕟𝕒", "💜": "💜 𝔹𝕚𝕤𝕖𝕩𝕦𝕒𝕝", "🖤": "🖤 𝔸𝕤𝕖𝕩𝕦𝕒𝕝", "🤍": "🤍 𝔸𝕣𝕣𝕠𝕞𝕒𝕟𝕥𝕚𝕔𝕠", "✨": "✨ 𝕆𝕥𝕣𝕒 𝕤𝕖𝕩𝕦𝕒𝕝𝕚𝕕𝕒𝕕"},
+    "Nichos": {"🎸": "🎸 𝔸𝕣𝕥𝕖 𝕪 𝔽𝕚𝕝𝕠𝕤𝕠𝕗𝕚𝕒", "🎲": "🎲 ℝ𝕠𝕝 𝕟 ℝ𝕠𝕝𝕝", "🐧": "🐧 𝕃𝕚𝕟𝕦𝕩 & ℂ𝕠𝕕𝕚𝕟𝕘"},
+    "Colores": {"🔴": "🔴 ℂ𝕠𝕝𝕠𝕣 𝟙", "🟠": "🟠 ℂ𝕠𝕝𝕠𝕣 𝟚", "🟡": "🟡 ℂ𝕠𝕝𝕠𝕣 𝟛", "🟢": "🟢 ℂ𝕠𝕝𝕠𝕣 𝟜", "🔵": "🔵 ℂ𝕠𝕝𝕠𝕣 𝟝", "🟣": "🟣 ℂ𝕠𝕝𝕠𝕣 𝟞", "🟤": "🟤 ℂ𝕠𝕝𝕠𝕣 𝟟", "⚫": "⚫ ℂ𝕠𝕝𝕠𝕣 𝟠", "🤍": "🤍 ℂ𝕠𝕝𝕠𝕣 𝟡", "💖": "💖 ℂ𝕠𝕝𝕠𝕣 𝟙𝟘"}
 }
 
 MY_GUILD = discord.Object(id=ID_SERVIDOR)
@@ -61,9 +73,9 @@ class SantuariBot(discord.Client):
 
     async def _iniciar_tienda(self):
         if self.db is not None:
-            # 🧹 LIMPIEZA DE BASE DE DATOS DE USUARIOS (Para reiniciar niveles/economía)
+            # 🧹 PURGA TOTAL DE USUARIOS SOLICITADA - RESET COMPLETO A 0
             await self.db["usuarios"].drop()
-            print("🧹 Base de datos de usuarios limpiada para el nuevo sistema de niveles.")
+            print("🧹 Base de datos de usuarios completamente destruida y reiniciada a 0.")
 
             tienda = self.db["tienda"]
             if await tienda.count_documents({}) == 0:
@@ -76,7 +88,7 @@ class SantuariBot(discord.Client):
 bot = SantuariBot()
 
 # =========================================================================
-# 🛡️ EVENTOS AUTOMÁTICOS Y ESCALADO RPG
+# 🎭 EVENTOS Y COMPROBACIONES DE REACCIONES CRUDAS
 # =========================================================================
 
 @bot.event
@@ -87,32 +99,82 @@ async def on_member_join(member):
 
 @bot.event
 async def on_raw_reaction_add(payload):
-    if str(payload.emoji) != "⭐" or bot.db is None:
-        return
-    canal = bot.get_channel(payload.channel_id)
-    mensaje = await canal.fetch_message(payload.message_id)
-    if mensaje.author.bot: 
+    if payload.user_id == bot.user.id or bot.db is None:
         return
 
-    reaccion = discord.utils.get(mensaje.reactions, emoji="⭐")
-    if reaccion and reaccion.count >= 3:
-        starboard_col = bot.db["starboard"]
-        ya_publicado = await starboard_col.find_one({"_id": mensaje.id})
-        
-        if not ya_publicado:
-            canal_starboard = bot.get_channel(ID_CANAL_STARBOARD)
-            if canal_starboard:
-                embed = discord.Embed(description=mensaje.content, color=discord.Color.gold())
-                embed.set_author(name=mensaje.author.display_name, icon_url=mensaje.author.display_avatar.url)
-                embed.add_field(name="Enlace", value=f"[Ir al mensaje]({mensaje.jump_url})")
-                if mensaje.attachments:
-                    embed.set_image(url=mensaje.attachments[0].url)
-                await canal_starboard.send(content=f"⭐ **{reaccion.count}** en {canal.mention}", embed=embed)
-                await starboard_col.insert_one({"_id": mensaje.id})
+    guild = bot.get_guild(payload.guild_id)
+    if not guild: return
+    member = guild.get_member(payload.user_id)
+    if not member: return
+
+    emoji_str = str(payload.emoji)
+
+    # 🚪 SECCIÓN A: Auto-roles Persistentes desde MongoDB Atlas
+    autorole_data = await bot.db["autoroles_mensajes"].find_one({"_id": payload.message_id})
+    if autorole_data:
+        mapeo = autorole_data.get("mapeo", {})
+        if emoji_str in mapeo:
+            nombre_rol = mapeo[emoji_str]
+            rol = discord.utils.get(guild.roles, name=nombre_rol)
+            if rol:
+                await member.add_roles(rol)
+        return
+
+    # ⭐ SECCIÓN B: Sistema General de Starboard
+    if emoji_str == "⭐":
+        canal = bot.get_channel(payload.channel_id)
+        mensaje = await canal.fetch_message(payload.message_id)
+        if mensaje.author.bot: 
+            return
+
+        reaccion = discord.utils.get(mensaje.reactions, emoji="⭐")
+        if reaccion and reaccion.count >= 3:
+            starboard_col = bot.db["starboard"]
+            ya_publicado = await starboard_col.find_one({"_id": mensaje.id})
+            
+            if not ya_publicado:
+                canal_starboard = bot.get_channel(ID_CANAL_STARBOARD)
+                if canal_starboard:
+                    embed = discord.Embed(description=mensaje.content, color=discord.Color.gold())
+                    embed.set_author(name=mensaje.author.display_name, icon_url=mensaje.author.display_avatar.url)
+                    embed.add_field(name="Enlace", value=f"[Ir al mensaje]({mensaje.jump_url})")
+                    if mensaje.attachments:
+                        embed.set_image(url=mensaje.attachments[0].url)
+                    await canal_starboard.send(content=f"⭐ **{reaccion.count}** en {canal.mention}", embed=embed)
+                    await starboard_col.insert_one({"_id": mensaje.id})
+
+@bot.event
+async def on_raw_reaction_remove(payload):
+    if bot.db is None: return
+    
+    guild = bot.get_guild(payload.guild_id)
+    if not guild: return
+    member = guild.get_member(payload.user_id)
+    if not member: return
+
+    emoji_str = str(payload.emoji)
+
+    # Remover roles si remueven la reacción en los paneles guardados
+    autorole_data = await bot.db["autoroles_mensajes"].find_one({"_id": payload.message_id})
+    if autorole_data:
+        mapeo = autorole_data.get("mapeo", {})
+        if emoji_str in mapeo:
+            nombre_rol = mapeo[emoji_str]
+            rol = discord.utils.get(guild.roles, name=nombre_rol)
+            if rol:
+                await member.remove_roles(rol)
+
+# =========================================================================
+# 📈 SISTEMA RPG DE CHAT Y MONEDAS (BLINDADO CONTRA DMs)
+# =========================================================================
 
 @bot.event
 async def on_message(message):
-    if bot.db is None or message.author.bot:
+    # Ignorar DMs y mensajes de otros autómatas
+    if message.guild is None or message.author.bot:
+        return
+
+    if bot.db is None:
         return
 
     # RECOMPENSA POR BUMP (Disboard)
@@ -124,43 +186,44 @@ async def on_message(message):
             await message.channel.send(f"📢 ¡Gracias por hacer Bump, {usuario_bump.mention}! Has recibido **{recompensa} 🪙**.")
         return
 
-    # ECONOMÍA Y SISTEMA RPG DE NIVELES Ajustado
+    miembro = message.author
     coleccion_usuarios = bot.db["usuarios"]
-    datos_usuario = await coleccion_usuarios.find_one({"_id": message.author.id})
+    datos_usuario = await coleccion_usuarios.find_one({"_id": miembro.id})
+    
     if not datos_usuario:
-        datos_usuario = {"_id": message.author.id, "xp": 0, "nivel": 1, "monedas": 0, "likes": 0}
+        datos_usuario = {"_id": miembro.id, "xp": 0, "nivel": 1, "monedas": 0}
 
     nuevo_nivel = datos_usuario.get("nivel", 1)
     
-    # Detener ganancia si ya es nivel máximo
     if nuevo_nivel >= 100:
         return
 
-    # Ritmo de ganancia de XP moderado
+    # Ritmo de ganancia de XP equilibrado
     xp_ganada = random.randint(10, 20)
     nueva_xp = datos_usuario.get("xp", 0) + xp_ganada
 
-    # 📈 CURVA MATEMÁTICA: Hasta lvl 5 es estándar, después se vuelve exponencialmente lento
+    # Curva matemática exponencial: Lenta tras nivel 5
     if nuevo_nivel < 5:
         xp_necesaria = nuevo_nivel * 120
     else:
-        xp_necesaria = int((nuevo_nivel ** 2.2) * 45) # Curva drástica
+        xp_necesaria = int((nuevo_nivel ** 2.2) * 45)
 
     if nueva_xp >= xp_necesaria:
         nuevo_nivel += 1
         nueva_xp -= xp_necesaria
-        await message.channel.send(f"🎖️ ¡{message.author.mention} ascendió al nivel **{nuevo_nivel}**!")
+        await message.channel.send(f"🎖️ ¡{miembro.mention} ascendió al nivel **{nuevo_nivel}**!")
 
-        # 👑 ASIGNACIÓN DE ROLES AUTOMÁTICA POR RANGO
+        # Otorgar rangos honoríficos dinámicos basados en el nombre
         if nuevo_nivel in ROLES_NIVEL:
-            id_rol = ROLES_NIVEL[nuevo_nivel]
-            rol_a_dar = message.guild.get_role(id_rol)
+            nombre_rol = ROLES_NIVEL[nuevo_nivel]
+            rol_a_dar = discord.utils.get(message.guild.roles, name=nombre_rol)
             if rol_a_dar:
-                await message.author.add_roles(rol_a_dar)
-                await message.channel.send(f"⚔️ ¡Se le ha otorgado el rango honorífico **{rol_a_dar.name}** a {message.author.mention}!")
+                await miembro.add_roles(rol_a_dar)
+                await message.channel.send(f"⚔️ ¡Se le ha otorgado el rango honorífico **{rol_a_dar.name}** a {miembro.mention}!")
 
-    # Monedas aleatorias en el chat
-    probabilidad = 0.15 if any(rol.id == ID_ROL_CONGRESISTA for rol in message.author.roles) else 0.05
+    # Probabilidad de recolección de monedas
+    es_congresista = any(rol.id == ID_ROL_CONGRESISTA for rol in miembro.roles) if hasattr(miembro, 'roles') else False
+    probabilidad = 0.15 if es_congresista else 0.05
     nuevas_monedas = datos_usuario.get("monedas", 0)
     
     if random.random() < probabilidad:
@@ -168,7 +231,7 @@ async def on_message(message):
         await message.add_reaction("🪙") 
 
     await coleccion_usuarios.update_one(
-        {"_id": message.author.id},
+        {"_id": miembro.id},
         {"$set": {"xp": nueva_xp, "nivel": nuevo_nivel, "monedas": nuevas_monedas}},
         upsert=True
     )
@@ -218,22 +281,21 @@ async def robar(interaction: discord.Interaction, objetivo: discord.Member):
     multa = random.randint(15, 30)
 
     if not ladron_data or ladron_data.get("monedas", 0) < multa:
-        return await interaction.response.send_message(f"🚨 No tienes suficiente capital para pagar la fianza si fallas (Mínimo requerido: {multa} 🪙).", ephemeral=True)
+        return await interaction.response.send_message(f"🚨 No tienes suficiente capital para pagar la fianza si fallas (Mínimo: {multa} 🪙).", ephemeral=True)
 
-    # 🎲 Probabilidad de éxito: 40%
+    # 🎲 Éxito del 40%
     if random.random() < 0.40:
-        porcentaje_robado = random.uniform(0.10, 0.35) # Roba entre el 10% y el 35%
+        porcentaje_robado = random.uniform(0.10, 0.35)
         botin = int(victima_data.get("monedas", 0) * porcentaje_robado)
         if botin < 1: botin = 1
 
         await bot.db["usuarios"].update_one({"_id": objetivo.id}, {"$inc": {"monedas": -botin}})
         await bot.db["usuarios"].update_one({"_id": interaction.user.id}, {"$inc": {"monedas": botin}})
-        await interaction.response.send_message(f"🥷 🗡️ ¡ÉXITO! {interaction.user.mention} asaltó a {objetivo.mention} en un callejón y huyó con **{botin} 🪙**.")
+        await interaction.response.send_message(f"🥷 ¡ÉXITO! {interaction.user.mention} asaltó a {objetivo.mention} en un callejón y huyó con **{botin} 🪙**.")
     else:
-        # Fracaso: El ladrón le paga la multa a la víctima
         await bot.db["usuarios"].update_one({"_id": interaction.user.id}, {"$inc": {"monedas": -multa}})
         await bot.db["usuarios"].update_one({"_id": objetivo.id}, {"$inc": {"monedas": multa}})
-        await interaction.response.send_message(f"🚨 ¡FRACASO! Capturaron a {interaction.user.mention} intentando robar a {objetivo.mention}. Fue procesado y obligado a pagarle **{multa} 🪙** por daños.")
+        await interaction.response.send_message(f"🚨 ¡FRACASO! Descubrieron a {interaction.user.mention} robando a {objetivo.mention}. Pagó una fianza forzada de **{multa} 🪙**.")
 
 # =========================================================================
 # 🛡️ COMANDOS DE MODERACIÓN IMPERIAL
@@ -244,15 +306,14 @@ async def robar(interaction: discord.Interaction, objetivo: discord.Member):
 async def mute(interaction: discord.Interaction, infractor: discord.Member, minutos: int, motivo: str = "Infracción de las leyes imperiales."):
     duracion = datetime.timedelta(minutes=minutos)
     
-    # Intento de aviso por DM
     try:
         embed_dm = discord.Embed(title="⚠️ Has sido aislado temporalmente", color=discord.Color.orange())
         embed_dm.add_field(name="Servidor", value=interaction.guild.name)
         embed_dm.add_field(name="Duración", value=f"{minutos} minutos")
         embed_dm.add_field(name="Motivo", value=motivo)
         await infractor.send(embed=embed_dm)
-    except discord.errors.Forbidden:
-        pass # DM Cerrado
+    except:
+        pass 
 
     await infractor.timeout(duracion, reason=motivo)
     await interaction.response.send_message(f"🤫 **{infractor.display_name}** ha sido aislado por {minutos} minutos. Motivo: {motivo}")
@@ -260,13 +321,12 @@ async def mute(interaction: discord.Interaction, infractor: discord.Member, minu
 @bot.tree.command(name="ban", description="Destierra permanentemente a un usuario del Imperio.")
 @app_commands.default_permissions(ban_members=True)
 async def ban(interaction: discord.Interaction, infractor: discord.Member, motivo: str = "Traición al Imperio."):
-    # Intento de aviso por DM
     try:
         embed_dm = discord.Embed(title="🚫 Has sido desterrado", color=discord.Color.red())
         embed_dm.add_field(name="Servidor", value=interaction.guild.name)
         embed_dm.add_field(name="Motivo", value=motivo)
         await infractor.send(embed=embed_dm)
-    except discord.errors.Forbidden:
+    except:
         pass
 
     await infractor.ban(reason=motivo)
@@ -278,13 +338,55 @@ async def purge(interaction: discord.Interaction, cantidad: int):
     if cantidad <= 0 or cantidad > 100:
         return await interaction.response.send_message("❌ La purga debe ser de entre 1 y 100 mensajes simultáneos.", ephemeral=True)
     
-    await interaction.response.defer(ephemeral=True) # Evita el timeout del bot mientras borra
+    await interaction.response.defer(ephemeral=True)
     eliminados = await interaction.channel.purge(limit=cantidad)
     await interaction.followup.send(f"🗑️ Purga completada. Se eliminaron **{len(eliminados)}** mensajes de la historia.", ephemeral=True)
 
 # =========================================================================
-# 🛍️ COMANDOS DE MERCADO BASE RETENIDOS
+# 🎭 PANALES DE REACCIÓN PERSISTENTES CON MONGODB
 # =========================================================================
+
+@bot.tree.command(name="desplegar_autoroles", description="[ADMIN] Despliega los paneles de auto-roles por reacción vinculados a MongoDB.")
+@app_commands.default_permissions(administrator=True)
+async def desplegar_autoroles(interaction: discord.Interaction):
+    if bot.db is None: 
+        return await interaction.response.send_message("❌ Sin conexión a la Bóveda.", ephemeral=True)
+    
+    await interaction.response.defer(ephemeral=True)
+    canal = interaction.channel
+    coleccion_msg = bot.db["autoroles_mensajes"]
+
+    async def generar_bloque(titulo, color, diccionario_mapeo):
+        desc = "Reacciona al emoji correspondiente para reclamar tu identidad dentro del Imperio:\n\n"
+        for emoji, nombre_rol in diccionario_mapeo.items():
+            desc += f"{emoji} ➔ **{nombre_rol}**\n"
+        
+        embed = discord.Embed(title=titulo, color=color, description=desc)
+        msg = await canal.send(embed=embed)
+        
+        for emoji in diccionario_mapeo.keys():
+            await msg.add_reaction(emoji)
+        
+        await coleccion_msg.update_one(
+            {"_id": msg.id},
+            {"$set": {"mapeo": diccionario_mapeo}},
+            upsert=True
+        )
+
+    await generar_bloque("🌎 Ministerio de Fronteras: Tu Región", 0x1982C4, DICCIONARIO_AUTOROLES["Regiones"])
+    await generar_bloque("⏳ Ministerio del Tiempo: Tu Edad", 0xFF8C00, DICCIONARIO_AUTOROLES["Edades"])
+    await generar_bloque("⚧️ Ministerio de Identidad: Género", 0xFF9ED2, DICCIONARIO_AUTOROLES["Generos"])
+    await generar_bloque("🗣️ Ministerio de Identidad: Pronombres", 0x8AC926, DICCIONARIO_AUTOROLES["Pronombres"])
+    await generar_bloque("🌈 Ministerio de Identidad: Orientación", 0x6A4C93, DICCIONARIO_AUTOROLES["Sexualidades"])
+    await generar_bloque("📚 Clasificación de Intereses", 0x2E8B57, DICCIONARIO_AUTOROLES["Nichos"])
+    await generar_bloque("🎨 Paleta del Régimen: Colores", 0xFFD700, DICCIONARIO_AUTOROLES["Colores"])
+
+    await interaction.followup.send("✅ Todos los bloques de auto-roles han sido desplegados y asegurados en MongoDB.", ephemeral=True)
+
+# =========================================================================
+# 🛍️ MERCADO IMPERIAL
+# =========================================================================
+
 @bot.tree.command(name="tienda", description="Mercado Imperial.")
 async def tienda(interaction: discord.Interaction):
     if bot.db is None: return await interaction.response.send_message("❌ Bóveda cerrada.", ephemeral=True)
