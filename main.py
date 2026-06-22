@@ -11,7 +11,6 @@ async def setup_hook(self):
         await self.tree.sync()
         print(" Comandos limpios.")
 
-Sincronizar comandos normalmente,
     self.tree.copy_global_to(guild=MY_GUILD)
     await self.tree.sync(guild=MY_GUILD)
     print(" Comandos sincronizados.")
