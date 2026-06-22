@@ -5,238 +5,243 @@ import random
 import motor.motor_asyncio
 
 # =========================================================================
-# ⚙️ CONFIGURACIÓN IMPERIAL
+# ⚙️ CONFIGURACIÓN IMPERIAL (¡LLENA ESTOS DATOS!)
 # =========================================================================
-# 1. El ID de los Congresistas (para darles más probabilidad de monedas)
-ID_ROL_CONGRESISTA = 1518298258382913748 
+ID_SERVIDOR = 1517885569231749240       # ID de tu servidor (Para que los comandos salgan al instante)
+ID_CANCILLER = 1518298260479938783       # Tu ID personal de Discord (Para mencionarte en compras)
+ID_ROL_AUTOROL = 1518298254767427855    # ID del rol que se da al entrar al servidor
+ID_CANAL_STARBOARD = 1518298279715017016 # ID del canal donde irán los mensajes estrella
+ID_BOT_BUMP = 302050872383242240        # ID de Disboard (Normalmente es este)
 
-# 2. Los IDs de los roles que son INMUNES a la automoderación
+ID_ROL_CONGRESISTA = 1518298258382913748 # ROL VIP para más monedas
+
 ROLES_INMUNES = [
     ID_ROL_CONGRESISTA,
-    1518298257581936861, # Reemplaza con el ID del rol Moderador
-    1518298253181845685  # Reemplaza con el ID del rol Élite
+    1518298257581936861, # Moderador
+    1518298253181845685  # Élite
 ]
+
+PALABRAS_PROHIBIDAS = ["spamlink.com", "scam", "insulto_fuerte"]
+
+MY_GUILD = discord.Object(id=ID_SERVIDOR)
 
 class SantuariBot(discord.Client):
     def __init__(self):
-        # Activamos los intents necesarios para leer mensajes y ver miembros
         intents = discord.Intents.default()
         intents.message_content = True
-        intents.members = True
+        intents.members = True # Vital para el autorol
+        intents.reactions = True # Vital para el Starboard
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
-        self.db = None # Aquí vivirá nuestra base de datos
+        self.db = None
 
     async def setup_hook(self):
-        # Conexión a la Bóveda de MongoDB Atlas
+        # Conexión a la Bóveda de MongoDB
         mongo_uri = os.environ.get("MONGO_URI")
         if mongo_uri:
             cluster = motor.motor_asyncio.AsyncIOMotorClient(mongo_uri)
             self.db = cluster["SantuariDB"] 
             print("💾 Bóveda de MongoDB conectada exitosamente.")
+            await self._iniciar_tienda()
         else:
-            print("⚠️ ADVERTENCIA: No se encontró la MONGO_URI en las variables de entorno.")
+            print("⚠️ ADVERTENCIA: No se encontró la MONGO_URI.")
 
-        # Sincronizar comandos de barra
-        await self.tree.sync()
-        print("🏛️ Comandos sincronizados. ¡Santuari está listo para forjar historia!")
+        # Sincronización INSTANTÁNEA en tu servidor
+        self.tree.copy_global_to(guild=MY_GUILD)
+        await self.tree.sync(guild=MY_GUILD)
+        print("🏛️ Comandos sincronizados al instante en el Imperio.")
+
+    async def _iniciar_tienda(self):
+        # Asegura que la tienda empiece con los objetos base
+        if self.db is not None:
+            tienda = self.db["tienda"]
+            if await tienda.count_documents({}) == 0:
+                await tienda.insert_many([
+                    {"_id": "Emoji Custom", "precio": 200, "descripcion": "Un emoji personalizado a tu elección."},
+                    {"_id": "Sticker Custom", "precio": 300, "descripcion": "Un sticker personalizado a tu elección."}
+                ])
+                print("🛍️ Tienda inicializada con artículos base.")
 
 bot = SantuariBot()
 
 # =========================================================================
-# 🛡️ EVENTOS PRINCIPALES (Motor Base y Automoderación)
+# 🛡️ EVENTOS AUTOMÁTICOS
 # =========================================================================
 
 @bot.event
-async def on_message(message):
-    # Ignorar a otros bots y a sí mismo
-    if message.author.bot:
+async def on_member_join(member):
+    # AUTOROL: Da el rol automáticamente cuando alguien entra
+    rol = member.guild.get_role(ID_ROL_AUTOROL)
+    if rol:
+        await member.add_roles(rol)
+
+@bot.event
+async def on_raw_reaction_add(payload):
+    # STARBOARD: 3 estrellas para destacar
+    if str(payload.emoji) != "⭐" or bot.db is None:
         return
 
-    # 1. AUTOMODERACIÓN CON INMUNIDAD DIPLOMÁTICA
-    es_inmune = (
-        message.author.id == message.guild.owner_id or # Tú (la Canciller) eres intocable
-        message.author.guild_permissions.administrator or # Administradores generales
-        any(rol.id in ROLES_INMUNES for rol in message.author.roles) # Roles VIP de la lista
-    )
+    canal = bot.get_channel(payload.channel_id)
+    mensaje = await canal.fetch_message(payload.message_id)
+    
+    if mensaje.author.bot: # Ignorar mensajes de bots
+        return
 
-    if not es_inmune:
-        palabras_prohibidas = ["spamlink.com", "insulto1", "insulto2"] # Edita tus palabras aquí
-        if any(palabra in message.content.lower() for palabra in palabras_prohibidas):
-            try:
-                await message.delete()
-                await message.channel.send(f"⚠️ {message.author.mention}, ese vocabulario o enlace no está permitido en el Imperio.", delete_after=5)
-            except discord.errors.Forbidden:
-                pass
-            return # Detiene el código para que el infractor no gane XP ni monedas
+    # Contar estrellas
+    reaccion = discord.utils.get(mensaje.reactions, emoji="⭐")
+    if reaccion and reaccion.count >= 3:
+        starboard_col = bot.db["starboard"]
+        ya_publicado = await starboard_col.find_one({"_id": mensaje.id})
+        
+        if not ya_publicado:
+            canal_starboard = bot.get_channel(ID_CANAL_STARBOARD)
+            if canal_starboard:
+                embed = discord.Embed(description=mensaje.content, color=discord.Color.gold())
+                embed.set_author(name=mensaje.author.display_name, icon_url=mensaje.author.display_avatar.url)
+                embed.add_field(name="Enlace", value=f"[Ir al mensaje]({mensaje.jump_url})")
+                if mensaje.attachments:
+                    embed.set_image(url=mensaje.attachments[0].url)
+                
+                await canal_starboard.send(content=f"⭐ **{reaccion.count}** en {canal.mention}", embed=embed)
+                await starboard_col.insert_one({"_id": mensaje.id}) # Marca como publicado
 
-    # Verificar que la base de datos esté activa antes de procesar XP
+@bot.event
+async def on_message(message):
     if bot.db is None:
         return
 
-    coleccion_usuarios = bot.db["usuarios"]
+    # RECOMPENSA POR BUMP (Disboard)
+    if message.author.id == ID_BOT_BUMP and message.interaction:
+        usuario_bump = message.interaction.user
+        if "Bump done!" in message.embeds[0].description or "Bump efectuado" in message.embeds[0].description:
+            recompensa = 50 # Monedas por el bump
+            await bot.db["usuarios"].update_one(
+                {"_id": usuario_bump.id}, 
+                {"$inc": {"monedas": recompensa}}, 
+                upsert=True
+            )
+            await message.channel.send(f"📢 ¡Gracias por hacer Bump, {usuario_bump.mention}! Has recibido **{recompensa} 🪙**.")
+        return
 
-    # 2. BUSCAR O CREAR USUARIO EN LA BÓVEDA
+    if message.author.bot:
+        return
+
+    # 1. MODERACIÓN Y FILTRO
+    es_inmune = (
+        message.author.id == message.guild.owner_id or 
+        message.author.guild_permissions.administrator or 
+        any(rol.id in ROLES_INMUNES for rol in message.author.roles)
+    )
+
+    if not es_inmune:
+        if any(palabra in message.content.lower() for palabra in PALABRAS_PROHIBIDAS):
+            try:
+                await message.delete()
+                await message.channel.send(f"⚠️ {message.author.mention}, cuidado con lo que hablas. Eso no está permitido.", delete_after=5)
+            except discord.errors.Forbidden:
+                pass
+            return 
+
+    # 2. ECONOMÍA BASE (XP y Monedas aleatorias)
+    coleccion_usuarios = bot.db["usuarios"]
     datos_usuario = await coleccion_usuarios.find_one({"_id": message.author.id})
     if not datos_usuario:
         datos_usuario = {"_id": message.author.id, "xp": 0, "nivel": 1, "monedas": 0, "likes": 0}
-        await coleccion_usuarios.insert_one(datos_usuario)
 
-    # 3. SISTEMA DE EXPERIENCIA Y NIVELES
     xp_ganada = random.randint(15, 25)
     nueva_xp = datos_usuario.get("xp", 0) + xp_ganada
-    xp_necesaria = datos_usuario.get("nivel", 1) * 100 
     nuevo_nivel = datos_usuario.get("nivel", 1)
+    xp_necesaria = nuevo_nivel * 100 
 
     if nueva_xp >= xp_necesaria:
         nuevo_nivel += 1
         nueva_xp -= xp_necesaria
-        await message.channel.send(f"🎖️ ¡Gloria al Imperio! {message.author.mention} ha subido al nivel **{nuevo_nivel}**.")
+        await message.channel.send(f"🎖️ ¡{message.author.mention} ascendió al nivel **{nuevo_nivel}**!")
 
-    # 4. SISTEMA DE PROBABILIDAD DE MONEDAS
-    probabilidad = 0.05 # Probabilidad base: 5%
-    
-    # Bono imperial: Si es congresista, sube al 15%
-    es_congresista = any(rol.id == ID_ROL_CONGRESISTA for rol in message.author.roles)
-    if es_congresista:
-        probabilidad = 0.15
-
+    # Probabilidad de encontrar moneda
+    probabilidad = 0.15 if any(rol.id == ID_ROL_CONGRESISTA for rol in message.author.roles) else 0.05
     nuevas_monedas = datos_usuario.get("monedas", 0)
+    
     if random.random() < probabilidad:
-        monedas_encontradas = random.randint(1, 5)
-        nuevas_monedas += monedas_encontradas
+        nuevas_monedas += random.randint(1, 5)
         await message.add_reaction("🪙") 
 
-    # 5. ACTUALIZAR EXPEDIENTE
     await coleccion_usuarios.update_one(
         {"_id": message.author.id},
-        {"$set": {"xp": nueva_xp, "nivel": nuevo_nivel, "monedas": nuevas_monedas}}
+        {"$set": {"xp": nueva_xp, "nivel": nuevo_nivel, "monedas": nuevas_monedas}},
+        upsert=True
     )
 
 # =========================================================================
-# 💰 COMANDOS DE PERFIL Y REPUTACIÓN
+# 💰 COMANDOS GLOBALES
 # =========================================================================
 
-@bot.tree.command(name="perfil", description="Mira tu nivel, monedas y likes en el Imperio.")
+@bot.tree.command(name="perfil", description="Mira tu estatus en el Imperio.")
 async def perfil(interaction: discord.Interaction, usuario: discord.Member = None):
-    usuario_objetivo = usuario or interaction.user
-    
-    if bot.db is None:
-        await interaction.response.send_message("❌ La bóveda está desconectada en este momento.", ephemeral=True)
-        return
+    if bot.db is None: return await interaction.response.send_message("❌ Bóveda cerrada.", ephemeral=True)
+    usuario_obj = usuario or interaction.user
+    datos = await bot.db["usuarios"].find_one({"_id": usuario_obj.id})
+    if not datos: return await interaction.response.send_message(f"📜 {usuario_obj.display_name} no tiene expediente.")
 
-    datos = await bot.db["usuarios"].find_one({"_id": usuario_objetivo.id})
-    if not datos:
-        await interaction.response.send_message(f"📜 {usuario_objetivo.display_name} aún no tiene registros en el Imperio.")
-        return
-
-    embed = discord.Embed(title=f"Perfil Imperial de {usuario_objetivo.display_name}", color=discord.Color.gold())
-    embed.add_field(name="🎖️ Nivel", value=str(datos.get("nivel", 1)), inline=True)
-    embed.add_field(name="✨ XP", value=str(datos.get("xp", 0)), inline=True)
-    embed.add_field(name="🪙 Monedas", value=str(datos.get("monedas", 0)), inline=True)
-    embed.add_field(name="❤️ Likes", value=str(datos.get("likes", 0)), inline=True)
-    embed.set_thumbnail(url=usuario_objetivo.display_avatar.url)
-
+    embed = discord.Embed(title=f"Perfil de {usuario_obj.display_name}", color=discord.Color.gold())
+    embed.add_field(name="🎖️ Nivel", value=str(datos.get("nivel", 1)))
+    embed.add_field(name="🪙 Monedas", value=str(datos.get("monedas", 0)))
+    embed.add_field(name="❤️ Likes", value=str(datos.get("likes", 0)))
+    embed.set_thumbnail(url=usuario_obj.display_avatar.url)
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="like", description="Dale un like a otro ciudadano del Imperio.")
-async def like(interaction: discord.Interaction, usuario: discord.Member):
-    if usuario.id == interaction.user.id:
-        return await interaction.response.send_message("❌ No puedes darte like a ti mismo.", ephemeral=True)
-    if usuario.bot:
-        return await interaction.response.send_message("❌ Los bots no coleccionamos likes, solo código.", ephemeral=True)
-    if bot.db is None:
-        return await interaction.response.send_message("❌ Sin conexión a la bóveda.", ephemeral=True)
-
-    col_usuarios = bot.db["usuarios"]
-    
-    receptor = await col_usuarios.find_one({"_id": usuario.id})
-    if not receptor:
-        await col_usuarios.insert_one({"_id": usuario.id, "xp": 0, "nivel": 1, "monedas": 0, "likes": 0})
-
-    await col_usuarios.update_one({"_id": usuario.id}, {"$inc": {"likes": 1}})
-    await interaction.response.send_message(f"💖 Le has dado un like a {usuario.mention}. ¡Qué excelente gesto!")
-
-# =========================================================================
-# 🛍️ SISTEMA DE TIENDA IMPERIAL
-# =========================================================================
-
-@bot.tree.command(name="tienda", description="Mira los objetos disponibles en el Mercado Imperial.")
+@bot.tree.command(name="tienda", description="Mercado Imperial.")
 async def tienda(interaction: discord.Interaction):
-    if bot.db is None:
-        await interaction.response.send_message("❌ La tienda está cerrada por mantenimiento de la bóveda.", ephemeral=True)
-        return
-
+    if bot.db is None: return await interaction.response.send_message("❌ Bóveda cerrada.", ephemeral=True)
     objetos = await bot.db["tienda"].find().to_list(length=100)
     
-    if not objetos:
-        await interaction.response.send_message("🕸️ La tienda está vacía por ahora. ¡Vuelve más tarde!")
-        return
-
-    embed = discord.Embed(title="🛍️ Mercado del Imperio Santuari", description="Usa `/comprar <nombre_objeto>` para adquirir algo.", color=discord.Color.purple())
+    embed = discord.Embed(title="🛍️ Tienda de Santuari", description="Usa `/comprar <nombre>`", color=discord.Color.purple())
     for obj in objetos:
-        descripcion = obj.get('descripcion', 'Sin descripción')
-        precio = obj.get('precio', 0)
-        embed.add_field(name=f"🏷️ {obj['_id']}", value=f"**Costo:** {precio} 🪙\n*{descripcion}*", inline=False)
-
+        embed.add_field(name=f"🏷️ {obj['_id']}", value=f"**{obj['precio']} 🪙** - {obj['descripcion']}", inline=False)
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="comprar", description="Compra un objeto de la tienda con tus monedas.")
-@app_commands.describe(objeto="El nombre exacto del objeto que quieres comprar")
+@bot.tree.command(name="comprar", description="Compra un objeto.")
+@app_commands.describe(objeto="Nombre exacto del objeto.")
 async def comprar(interaction: discord.Interaction, objeto: str):
-    if bot.db is None:
-        return await interaction.response.send_message("❌ Error de conexión con la bóveda.", ephemeral=True)
+    if bot.db is None: return await interaction.response.send_message("❌ Bóveda cerrada.", ephemeral=True)
+    
+    item = await bot.db["tienda"].find_one({"_id": objeto})
+    if not item: return await interaction.response.send_message("❌ Objeto inexistente.", ephemeral=True)
 
-    col_usuarios = bot.db["usuarios"]
-    col_tienda = bot.db["tienda"]
-
-    item = await col_tienda.find_one({"_id": objeto})
-    if not item:
-        return await interaction.response.send_message(f"❌ El objeto `{objeto}` no existe en la tienda.", ephemeral=True)
-
-    comprador = await col_usuarios.find_one({"_id": interaction.user.id})
+    comprador = await bot.db["usuarios"].find_one({"_id": interaction.user.id})
     if not comprador or comprador.get("monedas", 0) < item["precio"]:
-        return await interaction.response.send_message("💸 No tienes suficientes monedas para comprar esto.", ephemeral=True)
+        return await interaction.response.send_message("💸 Monedas insuficientes.", ephemeral=True)
 
-    await col_usuarios.update_one({"_id": interaction.user.id}, {"$inc": {"monedas": -item["precio"]}})
-    await interaction.response.send_message(f"🎉 ¡Felicidades! Has comprado **{objeto}** por {item['precio']} 🪙. Guárdalo bien.")
+    # Restar monedas
+    await bot.db["usuarios"].update_one({"_id": interaction.user.id}, {"$inc": {"monedas": -item["precio"]}})
+    
+    # Mensaje de éxito y PING a la Canciller
+    await interaction.response.send_message(f"🎉 **{interaction.user.display_name}** compró `{objeto}`.")
+    await interaction.channel.send(f"🔔 <@{ID_CANCILLER}>, debes gestionar la entrega de `{objeto}` para {interaction.user.mention}.")
 
 # =========================================================================
-# 👑 COMANDOS DE LA CANCILLER (Solo Administradores)
+# 👑 COMANDOS DE ADMINISTRACIÓN
 # =========================================================================
 
-@bot.tree.command(name="tienda_añadir", description="[ADMIN] Añade o actualiza un objeto en la tienda.")
+@bot.tree.command(name="tienda_añadir", description="[ADMIN] Añade/Actualiza la tienda.")
 @app_commands.default_permissions(administrator=True)
 async def tienda_añadir(interaction: discord.Interaction, nombre: str, precio: int, descripcion: str):
-    if bot.db is None:
-        return await interaction.response.send_message("❌ Sin conexión.", ephemeral=True)
-        
-    await bot.db["tienda"].update_one(
-        {"_id": nombre},
-        {"$set": {"precio": precio, "descripcion": descripcion}},
-        upsert=True 
-    )
-    await interaction.response.send_message(f"✅ Objeto `{nombre}` añadido/actualizado en la tienda por {precio} 🪙.", ephemeral=True)
+    if bot.db is None: return await interaction.response.send_message("❌ Sin conexión.", ephemeral=True)
+    await bot.db["tienda"].update_one({"_id": nombre}, {"$set": {"precio": precio, "descripcion": descripcion}}, upsert=True)
+    await interaction.response.send_message(f"✅ Objeto `{nombre}` guardado por {precio} 🪙.", ephemeral=True)
 
-@bot.tree.command(name="tienda_eliminar", description="[ADMIN] Elimina un objeto de la tienda.")
+@bot.tree.command(name="tienda_eliminar", description="[ADMIN] Quita un objeto.")
 @app_commands.default_permissions(administrator=True)
 async def tienda_eliminar(interaction: discord.Interaction, nombre: str):
-    if bot.db is None:
-        return await interaction.response.send_message("❌ Sin conexión.", ephemeral=True)
-
-    resultado = await bot.db["tienda"].delete_one({"_id": nombre})
-    if resultado.deleted_count > 0:
-        await interaction.response.send_message(f"🗑️ Objeto `{nombre}` eliminado de la tienda de forma permanente.", ephemeral=True)
-    else:
-        await interaction.response.send_message(f"❌ No se encontró el objeto `{nombre}`.", ephemeral=True)
+    if bot.db is None: return await interaction.response.send_message("❌ Sin conexión.", ephemeral=True)
+    await bot.db["tienda"].delete_one({"_id": nombre})
+    await interaction.response.send_message(f"🗑️ `{nombre}` eliminado.", ephemeral=True)
 
 # =========================================================================
-# 🚀 INICIO DEL BOT
+# 🚀 EJECUCIÓN (CON SEGURIDAD)
 # =========================================================================
-# TEMPORAL: Cambio para probar conexión
-token = os.environ.get("MTUxODEzMzM3MjA2MzMxODE2Nw.Gjg-Iq.UEvsOxKd1L5Zeqf_a2L1mo-YqUYrgINdoD2SjY")
+token = os.environ.get("DISCORD_TOKEN")
 if token:
     bot.run(token)
 else:
-    print("❌ ERROR CRÍTICO: No se encontró el DISCORD_TOKEN en las variables de entorno.")
     print("❌ ERROR CRÍTICO: No se encontró el DISCORD_TOKEN.")
