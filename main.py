@@ -1,418 +1,506 @@
+# =========================================================================
+# 🌌 SETUP FASE 1 — ESTRUCTURA DEL SERVIDOR (Mass Effect / Dragon Age)
+# =========================================================================
+# QUÉ HACE ESTE BOT:
+#   Expone un único comando slash /setup, ejecutable SOLO por el usuario
+#   con ID_DUEÑO, que:
+#   1. Borra TODOS los roles del servidor (excepto @everyone).
+#   2. Borra los canales que estén DENTRO de una categoría (no toca canales
+#      sueltos que no pertenezcan a ninguna categoría).
+#   3. Borra también las categorías mismas.
+#   4. Crea todos los roles nuevos (jerarquía, niveles, colores, autoroles).
+#   5. Crea todas las categorías y canales nuevos, con permisos de acceso
+#      por sección.
+#   6. Al final, imprime en consola (logs de Railway) todos los IDs en
+#      formato "<ID> ---- Nombre", listos para copiar.
+#
+# CÓMO SE USA:
+#   - Despliega este bot en Railway (o donde sea) de forma normal.
+#   - Cuando esté listo (online), ejecuta /setup desde Discord.
+#   - Solo el usuario con ID_DUEÑO puede ejecutarlo; cualquier otro
+#     recibe un rechazo silencioso (ephemeral) sin que pase nada.
+#   - Requiere la variable de entorno DISCORD_TOKEN.
+#   - El bot necesita permiso de Administrador (lo pediste así a propósito).
+#   - Una vez ejecutado y confirmado que todo salió bien, puedes borrar
+#     este código y archivarlo localmente (según tu plan de fases).
+#
+# ⚠️ ADVERTENCIA: /setup ES DESTRUCTIVO E IRREVERSIBLE.
+#   No hay segunda confirmación dentro de Discord — al ejecutar el comando,
+#   el borrado empieza de inmediato. Asegúrate de estar listo antes de
+#   presionar enter en el comando.
+# =========================================================================
+
 import discord
 from discord import app_commands
 import os
-import random
-import datetime
-import motor.motor_asyncio
-import certifi
+import sys
+import json
 
-# =========================================================================
-# ⚙️ CONFIGURACIÓN IMPERIAL
-# =========================================================================
-ID_SERVIDOR = 1517885569231749240        
-ID_CANCILLER = 1518298260479938783       
-ID_ROL_AUTOROL = 1518298254767427855     
-ID_CANAL_STARBOARD = 1518298279715017016 
-ID_BOT_BUMP = 302050872383242240         
+ID_SERVIDOR = 1518737565967192294  # Cambia esto si corresponde a otro server
+ID_DUEÑO = 1360882776706125874     # Único usuario autorizado para ejecutar /setup
 
-ID_ROL_CONGRESISTA = 1518298258382913748 
+intents = discord.Intents.default()
+intents.members = True
+intents.guilds = True
 
-ROLES_INMUNES = [
-    ID_ROL_CONGRESISTA,
-    1518298257581936861, # Moderador
-    1518298253181845685  # Élite
-]
-
-# 🎖️ DICCIONARIO DE ROLES POR NIVEL (Tipografía Doble Strike)
-ROLES_NIVEL = {
-    5: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟛: ℝ𝕖𝕤𝕚𝕕𝕖𝕟𝕥𝕖",   # Se busca por nombre dinámico en el gremio
-    10: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟙𝟘: 𝕀𝕟𝕤𝕡𝕖𝕔𝕥𝕠𝕣",
-    20: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟚𝟘: 𝔹𝕦𝕣𝕠𝕔𝕣𝕒𝕥𝕒",
-    30: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟛𝟘: 𝕆𝕗𝕚𝕔𝕚𝕟𝕚𝕤𝕥𝕒",
-    40: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟜𝟘: 𝕍𝕠𝕫 ℂ𝕚𝕧𝕚𝕔𝕒",
-    50: "🟢 ℕ𝕚𝕧𝕖𝕝 𝟛𝟘: ℂ𝕚𝕦𝕕𝕒𝕕𝕒𝕟𝕠 𝔼𝕛𝕖𝕞𝕡𝕝𝕒𝕣",
-    100: "🏆 ℕ𝕚𝕧𝕖𝕝 𝟙𝟘𝟘: ℍ𝕖𝕣𝕠𝕖"
-}
-
-# 🎭 DICCIONARIOS DE CONFIGURACIÓN DE AUTOROLES (Tipografía Doble Strike)
-DICCIONARIO_AUTOROLES = {
-    "Regiones": {"🦅": "🦅 ℕ𝕠𝕣𝕥𝕖𝕒𝕞𝕖𝕣𝕚𝕔𝕒", "🦙": "🦙 𝕊𝕦𝕕𝕒𝕞𝕖𝕣𝕚𝕔𝕒", "🏰": "🏰 𝔼𝕦𝕣𝕠𝕡𝕒", "🐉": "🐉 𝔸𝕤𝕚𝕒"},
-    "Edades": {"🎒": "🎒 𝟙𝟜-𝟙𝟟", "🎓": "🎓 𝟙𝟠-𝟚𝟝", "🍷": "🍷 𝟚𝟝+"},
-    "Generos": {"♂️": "♂️ ℍ𝕠𝕞𝕓𝕣𝕖 𝕔𝕚𝕤", "♀️": "♀️ 𝕄𝕦𝕛𝕖𝕣 𝕔𝕚𝕤", "🏳️‍⚧️": "🏳️‍⚧️ 𝕋𝕣𝕒𝕟𝕤𝕘𝕖𝕟𝕖𝕣𝕠", "👽": "👽 ℕ𝕠 𝕓𝕚𝕟𝕒𝕣𝕚𝕖", "🌀": "🌀 𝕆𝕥𝕣𝕠 𝕘𝕖𝕟𝕖𝕣𝕠"},
-    "Pronombres": {"📖": "📖 𝕤𝕙𝕖/𝕙𝕖𝕣", "📘": "📘 𝕙𝕖/𝕙𝕚𝕞", "📗": "📗 𝕥𝕙𝕖𝪪/𝕥𝕙𝕖𝕞", "📔": "📔 𝕆𝕥𝕣ос 𝕡𝕣𝕠𝕟𝕠𝕞𝕓𝕣𝕖𝕤"},
-    "Sexualidades": {"🌈": "🌈 𝔾𝕒𝕪", "🌸": "🌸 𝕃𝕖𝕤𝕓𝕚𝕒𝕟𝕒", "💜": "💜 𝔹𝕚𝕤𝕖𝕩𝕦𝕒𝕝", "🖤": "🖤 𝔸𝕤𝕖𝕩𝕦𝕒𝕝", "🤍": "🤍 𝔸𝕣𝕣𝕠𝕞𝕒𝕟𝕥𝕚𝕔𝕠", "✨": "✨ 𝕆𝕥𝕣𝕒 𝕤𝕖𝕩𝕦𝕒𝕝𝕚𝕕𝕒𝕕"},
-    "Nichos": {"🎸": "🎸 𝔸𝕣𝕥𝕖 𝕪 𝔽𝕚𝕝𝕠𝕤𝕠𝕗𝕚𝕒", "🎲": "🎲 ℝ𝕠𝕝 𝕟 ℝ𝕠𝕝𝕝", "🐧": "🐧 𝕃𝕚𝕟𝕦𝕩 & ℂ𝕠𝕕𝕚𝕟𝕘"},
-    "Colores": {"🔴": "🔴 ℂ𝕠𝕝𝕠𝕣 𝟙", "🟠": "🟠 ℂ𝕠𝕝𝕠𝕣 𝟚", "🟡": "🟡 ℂ𝕠𝕝𝕠𝕣 𝟛", "🟢": "🟢 ℂ𝕠𝕝𝕠𝕣 𝟜", "🔵": "🔵 ℂ𝕠𝕝𝕠𝕣 𝟝", "🟣": "🟣 ℂ𝕠𝕝𝕠𝕣 𝟞", "🟤": "🟤 ℂ𝕠𝕝𝕠𝕣 𝟟", "⚫": "⚫ ℂ𝕠𝕝𝕠𝕣 𝟠", "🤍": "🤍 ℂ𝕠𝕝𝕠𝕣 𝟡", "💖": "💖 ℂ𝕠𝕝𝕠𝕣 𝟙𝟘"}
-}
-
+client = discord.Client(intents=intents)
+tree = app_commands.CommandTree(client)
 MY_GUILD = discord.Object(id=ID_SERVIDOR)
 
-class SantuariBot(discord.Client):
-    def __init__(self):
-        intents = discord.Intents.default()
-        intents.message_content = True
-        intents.members = True 
-        intents.reactions = True 
-        super().__init__(intents=intents)
-        self.tree = app_commands.CommandTree(self)
-        self.db = None
+# =========================================================================
+# 🎨 DEFINICIÓN DE TIPOGRAFÍA DOBLE-STRIKE
+# =========================================================================
+# Mapeo de caracteres normales a su versión doble-strike (𝕯𝖔𝖚𝖻𝖑𝖊-𝖘𝖙𝖗𝖎𝖐𝖊)
+# Se usa SOLO para: roles de jerarquía especial y roles de nivel.
+_DOBLE_STRIKE = {
+    'A':'𝔸','B':'𝔹','C':'ℂ','D':'𝔻','E':'𝔼','F':'𝔽','G':'𝔾','H':'ℍ','I':'𝕀',
+    'J':'𝕁','K':'𝕂','L':'𝕃','M':'𝕄','N':'ℕ','O':'𝕆','P':'ℙ','Q':'ℚ','R':'ℝ',
+    'S':'𝕊','T':'𝕋','U':'𝕌','V':'𝕍','W':'𝕎','X':'𝕏','Y':'𝕐','Z':'ℤ',
+    'a':'𝕒','b':'𝕓','c':'𝕔','d':'𝕕','e':'𝕖','f':'𝕗','g':'𝕘','h':'𝕙','i':'𝕚',
+    'j':'𝕛','k':'𝕜','l':'𝕝','m':'𝕞','n':'𝕟','o':'𝕠','p':'𝕡','q':'𝕢','r':'𝕣',
+    's':'𝕤','t':'𝕥','u':'𝕦','v':'𝕧','w':'𝕨','x':'𝕩','y':'𝕪','z':'𝕫',
+    '0':'𝟘','1':'𝟙','2':'𝟚','3':'𝟛','4':'𝟜','5':'𝟝','6':'𝟞','7':'𝟟','8':'𝟠','9':'𝟡',
+}
 
-    async def setup_hook(self):
-        mongo_uri = os.environ.get("MONGO_URI")
-        if mongo_uri:
-            cluster = motor.motor_asyncio.AsyncIOMotorClient(mongo_uri, tlsCAFile=certifi.where())
-            self.db = cluster["SantuariDB"] 
-            print("💾 Bóveda de MongoDB conectada exitosamente con SSL validado.")
-            await self._iniciar_tienda()
-        else:
-            print("⚠️ ADVERTENCIA: No se encontró la MONGO_URI.")
+def doble_strike(texto: str) -> str:
+    """Convierte texto normal a tipografía doble-strike, dejando intactos
+    espacios, emojis y símbolos que no estén en el mapeo."""
+    return "".join(_DOBLE_STRIKE.get(c, c) for c in texto)
 
-        self.tree.copy_global_to(guild=MY_GUILD)
-        await self.tree.sync(guild=MY_GUILD)
-        print("🏛️ Comandos sincronizados al instante en el Imperio.")
-
-    async def _iniciar_tienda(self):
-        if self.db is not None:
-            # 🧹 PURGA TOTAL DE USUARIOS SOLICITADA - RESET COMPLETO A 0
-            await self.db["usuarios"].drop()
-            print("🧹 Base de datos de usuarios completamente destruida y reiniciada a 0.")
-
-            tienda = self.db["tienda"]
-            if await tienda.count_documents({}) == 0:
-                await tienda.insert_many([
-                    {"_id": "Emoji Custom", "precio": 200, "descripcion": "Un emoji personalizado a tu elección."},
-                    {"_id": "Sticker Custom", "precio": 300, "descripcion": "Un sticker personalizado a tu elección."}
-                ])
-                print("🛍️ Tienda inicializada con artículos base.")
-
-bot = SantuariBot()
 
 # =========================================================================
-# 🎭 EVENTOS Y COMPROBACIONES DE REACCIONES CRUDAS
+# 🎭 DEFINICIÓN DE ROLES
 # =========================================================================
+# Cada rol: (nombre_final, color_hex, hoist, mentionable)
+# El orden en esta lista es el orden de creación. discord.py crea los
+# roles de abajo hacia arriba en la jerarquía visual, así que el PRIMERO
+# de esta lista queda en la posición MÁS ALTA una vez reordenado al final.
 
-@bot.event
-async def on_member_join(member):
-    rol = member.guild.get_role(ID_ROL_AUTOROL)
-    if rol:
-        await member.add_roles(rol)
+ROLES_JERARQUIA = [
+    # (nombre_base, emoji, hex_color)
+    ("Andraste",       "💫", 0xF4C430),
+    ("Inquisidor",     "🛡️", 0x9B1C1C),
+    ("Comandante",     "🤖", 0x1B3A5C),
+    ("Espectros",      "👁️", 0xC0C0C0),
+    ("Guardas Grises", "⚔️", 0x3A4A5C),
+    ("El Círculo",     "🔮", 0x6B4C9A),
+]
 
-@bot.event
-async def on_raw_reaction_add(payload):
-    if payload.user_id == bot.user.id or bot.db is None:
-        return
+# Niveles: de 10 en 10 hasta 100
+ROLES_NIVEL_DEF = [
+    (10,  "🔹"), (20, "🔸"), (30, "🟦"), (40, "🟧"), (50, "🟪"),
+    (60,  "🟩"), (70, "💠"), (80, "⭐"), (90, "🌟"), (100, "🏆"),
+]
 
-    guild = bot.get_guild(payload.guild_id)
-    if not guild: return
-    member = guild.get_member(payload.user_id)
-    if not member: return
+ROL_HABITANTE = "Habitante"  # rol base, sin emoji, tipografía normal
 
-    emoji_str = str(payload.emoji)
+# Colores autorol (sin emoji, tipografía normal)
+ROLES_COLOR = [
+    ("Carmesí",   0xE63946),
+    ("Ámbar",     0xF4A261),
+    ("Dorado",    0xFFD60A),
+    ("Esmeralda", 0x2A9D8F),
+    ("Zafiro",    0x3D5A80),
+    ("Amatista",  0x7B2CBF),
+    ("Rosa",      0xFF6FB5),
+    ("Marfil",    0xF1FAEE),
+    ("Obsidiana", 0x22223B),
+    ("Celeste",   0x90E0EF),
+]
 
-    # 🚪 SECCIÓN A: Auto-roles Persistentes desde MongoDB Atlas
-    autorole_data = await bot.db["autoroles_mensajes"].find_one({"_id": payload.message_id})
-    if autorole_data:
-        mapeo = autorole_data.get("mapeo", {})
-        if emoji_str in mapeo:
-            nombre_rol = mapeo[emoji_str]
-            rol = discord.utils.get(guild.roles, name=nombre_rol)
-            if rol:
-                await member.add_roles(rol)
-        return
+# Autoroles normales (sin emoji, tipografía normal, color gris neutro por defecto)
+ROLES_GENERO = ["Hombre", "Mujer", "Transgénero", "No binarie", "Otro género"]
+ROLES_REGION = ["Norteamérica", "Sudamérica", "Europa", "Asia"]
+ROLES_SEXUALIDAD = ["Heterosexual", "Lesbiana", "Bisexual", "Gay", "Asexual", "Alosexual", "Arromántico", "Otra sexualidad"]
+ROLES_PRONOMBRES = ["She/Her", "He/Him", "They/Them", "Otros pronombres"]
+ROLES_NICHO = ["Linux & Coding", "Arte y Filosofía", "Rol n Roll"]
+ROLES_EDAD = ["14-17", "18-25", "26+"]
+ROLES_OCUPACION = ["Artista", "Programador", "Dungeon Master", "Seudo Filósofo", "Politólogo"]
 
-    # ⭐ SECCIÓN B: Sistema General de Starboard
-    if emoji_str == "⭐":
-        canal = bot.get_channel(payload.channel_id)
-        mensaje = await canal.fetch_message(payload.message_id)
-        if mensaje.author.bot: 
-            return
-
-        reaccion = discord.utils.get(mensaje.reactions, emoji="⭐")
-        if reaccion and reaccion.count >= 3:
-            starboard_col = bot.db["starboard"]
-            ya_publicado = await starboard_col.find_one({"_id": mensaje.id})
-            
-            if not ya_publicado:
-                canal_starboard = bot.get_channel(ID_CANAL_STARBOARD)
-                if canal_starboard:
-                    embed = discord.Embed(description=mensaje.content, color=discord.Color.gold())
-                    embed.set_author(name=mensaje.author.display_name, icon_url=mensaje.author.display_avatar.url)
-                    embed.add_field(name="Enlace", value=f"[Ir al mensaje]({mensaje.jump_url})")
-                    if mensaje.attachments:
-                        embed.set_image(url=mensaje.attachments[0].url)
-                    await canal_starboard.send(content=f"⭐ **{reaccion.count}** en {canal.mention}", embed=embed)
-                    await starboard_col.insert_one({"_id": mensaje.id})
-
-@bot.event
-async def on_raw_reaction_remove(payload):
-    if bot.db is None: return
-    
-    guild = bot.get_guild(payload.guild_id)
-    if not guild: return
-    member = guild.get_member(payload.user_id)
-    if not member: return
-
-    emoji_str = str(payload.emoji)
-
-    # Remover roles si remueven la reacción en los paneles guardados
-    autorole_data = await bot.db["autoroles_mensajes"].find_one({"_id": payload.message_id})
-    if autorole_data:
-        mapeo = autorole_data.get("mapeo", {})
-        if emoji_str in mapeo:
-            nombre_rol = mapeo[emoji_str]
-            rol = discord.utils.get(guild.roles, name=nombre_rol)
-            if rol:
-                await member.remove_roles(rol)
 
 # =========================================================================
-# 📈 SISTEMA RPG DE CHAT Y MONEDAS (BLINDADO CONTRA DMs)
+# 🧹 PASO 1: LIMPIEZA
 # =========================================================================
 
-@bot.event
-async def on_message(message):
-    # Ignorar DMs y mensajes de otros autómatas
-    if message.guild is None or message.author.bot:
+async def limpiar_servidor(guild: discord.Guild):
+    print("\n🧹 Iniciando limpieza del servidor...")
+
+    # --- Borrar canales dentro de categorías (y las categorías mismas) ---
+    # Los canales que NO pertenecen a ninguna categoría (category is None)
+    # se dejan intactos, tal como se pidió.
+    categorias = list(guild.categories)
+    for categoria in categorias:
+        for canal in list(categoria.channels):
+            try:
+                await canal.delete(reason="Setup Fase 1: limpieza")
+                print(f"   🗑️ Canal borrado: {canal.name}")
+            except discord.HTTPException as e:
+                print(f"   ⚠️ No se pudo borrar el canal {canal.name}: {e}")
+        try:
+            await categoria.delete(reason="Setup Fase 1: limpieza")
+            print(f"   🗑️ Categoría borrada: {categoria.name}")
+        except discord.HTTPException as e:
+            print(f"   ⚠️ No se pudo borrar la categoría {categoria.name}: {e}")
+
+    # --- Borrar TODOS los roles (excepto @everyone) ---
+    # Incluye roles "managed" creados por este mismo bot en corridas anteriores
+    # de setup. NOTA: el rol managed del bot DE DISCORD en sí (el que Discord
+    # genera automáticamente para que el bot tenga member object) normalmente
+    # no se puede borrar vía API aunque lo intentemos — Discord lo rechaza
+    # solo, así que el try/except lo absorbe sin romper el script.
+    for rol in list(guild.roles):
+        if rol.is_default():
+            continue  # @everyone nunca se borra (Discord no lo permite)
+        try:
+            await rol.delete(reason="Setup Fase 1: limpieza")
+            print(f"   🗑️ Rol borrado: {rol.name}")
+        except discord.HTTPException as e:
+            print(f"   ⚠️ No se pudo borrar el rol {rol.name}: {e}")
+
+    print("✅ Limpieza completada.\n")
+
+
+# =========================================================================
+# 🎭 PASO 2: CREACIÓN DE ROLES
+# =========================================================================
+
+async def crear_roles(guild: discord.Guild):
+    print("🎭 Creando roles...")
+    ids_roles = {}  # nombre_legible -> objeto discord.Role
+
+    # --- Jerarquía especial: emoji + tipografía doble-strike + color único ---
+    for nombre_base, emoji, color in ROLES_JERARQUIA:
+        nombre_final = f"{emoji} {doble_strike(nombre_base)}"
+        rol = await guild.create_role(
+            name=nombre_final,
+            color=discord.Color(color),
+            hoist=True,
+            mentionable=True,
+            reason="Setup Fase 1: jerarquía"
+        )
+        ids_roles[nombre_base] = rol
+        print(f"   ✅ {nombre_final}")
+
+    # --- Niveles: emoji + tipografía doble-strike, color verde estándar ---
+    for nivel, emoji in ROLES_NIVEL_DEF:
+        nombre_base = f"Nivel {nivel}"
+        nombre_final = f"{emoji} {doble_strike(nombre_base)}"
+        rol = await guild.create_role(
+            name=nombre_final,
+            color=discord.Color(0x57A773),
+            hoist=False,
+            mentionable=False,
+            reason="Setup Fase 1: niveles"
+        )
+        ids_roles[f"Nivel {nivel}"] = rol
+        print(f"   ✅ {nombre_final}")
+
+    # --- Rol base Habitante: sin emoji, tipografía normal ---
+    rol_habitante = await guild.create_role(
+        name=ROL_HABITANTE,
+        color=discord.Color(0x95A5A6),
+        hoist=False,
+        mentionable=False,
+        reason="Setup Fase 1: rol base"
+    )
+    ids_roles[ROL_HABITANTE] = rol_habitante
+    print(f"   ✅ {ROL_HABITANTE}")
+
+    # --- Colores autorol: sin emoji, tipografía normal ---
+    for nombre, color in ROLES_COLOR:
+        rol = await guild.create_role(
+            name=nombre,
+            color=discord.Color(color),
+            hoist=False,
+            mentionable=False,
+            reason="Setup Fase 1: colores"
+        )
+        ids_roles[nombre] = rol
+        print(f"   ✅ {nombre}")
+
+    # --- Autoroles normales: sin emoji, tipografía normal, sin color especial ---
+    grupos_autorol = (
+        ROLES_GENERO + ROLES_REGION + ROLES_SEXUALIDAD +
+        ROLES_PRONOMBRES + ROLES_NICHO + ROLES_EDAD + ROLES_OCUPACION
+    )
+    for nombre in grupos_autorol:
+        rol = await guild.create_role(
+            name=nombre,
+            color=discord.Color.default(),
+            hoist=False,
+            mentionable=False,
+            reason="Setup Fase 1: autoroles"
+        )
+        ids_roles[nombre] = rol
+        print(f"   ✅ {nombre}")
+
+    print("✅ Todos los roles fueron creados.\n")
+    return ids_roles
+
+
+# =========================================================================
+# 📂 PASO 3: CREACIÓN DE CANALES
+# =========================================================================
+
+async def crear_canales(guild: discord.Guild, roles: dict):
+    print("📂 Creando categorías y canales...")
+    ids_canales = {}
+
+    everyone = guild.default_role
+    rol_habitante = roles[ROL_HABITANTE]
+    rol_linux = roles["Linux & Coding"]
+    rol_rol = roles["Rol n Roll"]
+    rol_arte = roles["Arte y Filosofía"]
+    rol_espectros = roles["Espectros"]
+    rol_andraste = roles["Andraste"]
+    rol_inquisidor = roles["Inquisidor"]
+    rol_guardas = roles["Guardas Grises"]
+    rol_circulo = roles["El Círculo"]
+
+    staff_roles = [rol_andraste, rol_inquisidor, rol_guardas, rol_circulo]
+
+    async def nueva_categoria(nombre, overwrites=None):
+        cat = await guild.create_category(nombre, overwrites=overwrites or {}, reason="Setup Fase 1")
+        ids_canales[nombre] = cat.id
+        print(f"   📁 Categoría: {nombre}")
+        return cat
+
+    async def nuevo_texto(categoria, nombre, topic=None, overwrites=None):
+        canal = await categoria.create_text_channel(
+            nombre, topic=topic, overwrites=overwrites or {}, reason="Setup Fase 1"
+        )
+        ids_canales[nombre] = canal.id
+        print(f"      💬 {nombre}")
+        return canal
+
+    async def nuevo_voz(categoria, nombre, user_limit=0, overwrites=None):
+        canal = await categoria.create_voice_channel(
+            nombre, user_limit=user_limit, overwrites=overwrites or {}, reason="Setup Fase 1"
+        )
+        ids_canales[nombre] = canal.id
+        print(f"      🔊 {nombre} (límite: {user_limit or 'sin límite'})")
+        return canal
+
+    # Overwrite estándar: solo "Habitante" y superiores pueden ver; @everyone no.
+    base_overwrites = {
+        everyone: discord.PermissionOverwrite(view_channel=False),
+        rol_habitante: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True),
+    }
+
+    def overwrites_con_rol(rol_extra, ver_para_habitante=False):
+        """Genera overwrites donde SOLO rol_extra (+ staff) puede ver el canal."""
+        ow = {
+            everyone: discord.PermissionOverwrite(view_channel=False),
+            rol_extra: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True),
+        }
+        for sr in staff_roles:
+            ow[sr] = discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True)
+        return ow
+
+    # ---------------------------------------------------------------
+    # 1. Información del Servidor (visible para todos, incluso sin rol)
+    # ---------------------------------------------------------------
+    info_overwrites = {
+        everyone: discord.PermissionOverwrite(view_channel=True, send_messages=False),
+    }
+    cat_info = await nueva_categoria("📜 Información del Servidor", info_overwrites)
+    await nuevo_texto(cat_info, "👋 bienvenidas", "Bienvenido al Imperio. Aquí empieza tu historia.")
+    await nuevo_texto(cat_info, "📖 reglas", "Las leyes que rigen este mundo.")
+    await nuevo_texto(cat_info, "🎫 tickets", "Contacta al staff de forma privada.",
+                       overwrites={everyone: discord.PermissionOverwrite(view_channel=True, send_messages=True)})
+    await nuevo_texto(cat_info, "🗺️ guía-del-servidor", "Todo lo que necesitas saber para empezar.")
+
+    # ---------------------------------------------------------------
+    # 2. Offtopic (rol Habitante)
+    # ---------------------------------------------------------------
+    cat_offtopic = await nueva_categoria("🌍 Offtopic", base_overwrites)
+    await nuevo_texto(cat_offtopic, "💬 chat-offtopic", "Habla de lo que sea.")
+    await nuevo_texto(cat_offtopic, "🙋 presentación", "Cuéntanos quién eres.")
+    await nuevo_texto(cat_offtopic, "🎬 media", "Comparte videos e imágenes.")
+    await nuevo_texto(cat_offtopic, "😂 memes", "El humor del Imperio.")
+    await nuevo_texto(cat_offtopic, "📸 selfies", "Muestra tu rostro al mundo.")
+
+    # ---------------------------------------------------------------
+    # 3. VC Offtopic (rol Habitante)
+    # ---------------------------------------------------------------
+    cat_vc_offtopic = await nueva_categoria("🔊 VC Offtopic", base_overwrites)
+    await nuevo_voz(cat_vc_offtopic, "🔊 VC General", user_limit=0)
+    for i in range(1, 4):
+        await nuevo_voz(cat_vc_offtopic, f"👥 VC Duo {i}", user_limit=2)
+    for i in range(1, 5):
+        await nuevo_voz(cat_vc_offtopic, f"👥 VC Trío {i}", user_limit=3)
+    for i in range(1, 3):
+        await nuevo_voz(cat_vc_offtopic, f"👥 VC Grupo {i}", user_limit=5)
+
+    # ---------------------------------------------------------------
+    # 4. Linux & Coding (rol Linux & Coding) + VC Mantenimiento dentro
+    # ---------------------------------------------------------------
+    cat_linux = await nueva_categoria("💻 Linux & Coding", overwrites_con_rol(rol_linux))
+    await nuevo_texto(cat_linux, "🐧 linux-general", "Discusión general sobre Linux.")
+    await nuevo_texto(cat_linux, "🖼️ linux-media", "Capturas, fotos, recursos visuales.")
+    await nuevo_texto(cat_linux, "⚙️ linux-setup", "Muestra tu setup, dotfiles, rice.")
+    await nuevo_texto(cat_linux, "😂 linux-coding-memes", "Humor de programador.")
+    await nuevo_texto(cat_linux, "📝 tu-código", "Comparte tu código.")
+    await nuevo_texto(cat_linux, "🗳️ votar-códigos", "Vota el mejor código de la semana.")
+    for i in range(1, 6):
+        await nuevo_voz(cat_linux, f"🛠️ Ayuda Técnica {i}", user_limit=0)
+
+    # ---------------------------------------------------------------
+    # 5. Rol & Roll (rol Rol n Roll)
+    # ---------------------------------------------------------------
+    cat_rol = await nueva_categoria("🎲 Rol & Roll", overwrites_con_rol(rol_rol))
+    await nuevo_texto(cat_rol, "📜 reglas-de-mesa", "Normas para las partidas.")
+    await nuevo_texto(cat_rol, "🧙 presentación-de-personajes", "Presenta a tu personaje.")
+    await nuevo_texto(cat_rol, "🎲 general-rol-n-roll", "Charla general de rol.")
+    await nuevo_texto(cat_rol, "🖼️ media-rol-n-roll", "Imágenes y recursos de rol.")
+    await nuevo_texto(cat_rol, "🗂️ organizar-party", "Busca grupo para tu próxima partida.")
+    await nuevo_texto(cat_rol, "😂 memes-rol", "Humor de mesa.")
+    await nuevo_texto(cat_rol, "🃏 otros-juegos-de-rol", "Otros sistemas y juegos de rol.")
+
+    # ---------------------------------------------------------------
+    # 6. VC Rol & Roll (rol Rol n Roll)
+    # ---------------------------------------------------------------
+    cat_vc_rol = await nueva_categoria("🔊 VC Rol & Roll", overwrites_con_rol(rol_rol))
+    for i in range(1, 6):
+        await nuevo_voz(cat_vc_rol, f"🎲 Mesa {i}", user_limit=5)
+
+    # ---------------------------------------------------------------
+    # 7. Arte y Cultura (rol Arte y Filosofía)
+    # ---------------------------------------------------------------
+    cat_arte = await nueva_categoria("🎨 Arte y Cultura", overwrites_con_rol(rol_arte))
+    await nuevo_texto(cat_arte, "🎨 general-arte-y-cultura", "Charla general de arte y filosofía.")
+    await nuevo_texto(cat_arte, "🎵 música", "Comparte y discute música.")
+    await nuevo_texto(cat_arte, "🖼️ media-arte-y-cultura", "Imágenes y recursos culturales.")
+    await nuevo_texto(cat_arte, "😂 memes-arte-y-cultura", "Humor artístico.")
+    await nuevo_texto(cat_arte, "📚 tu-biblioteca", "Recomendaciones y reseñas.")
+    await nuevo_texto(cat_arte, "🖌️ tus-dibujos", "Comparte tus dibujos.")
+    await nuevo_texto(cat_arte, "🗳️ votar-dibujos", "Vota el mejor dibujo de la semana.")
+
+    # ---------------------------------------------------------------
+    # 8. VIP Espectros (rol Espectros) — categoría propia, antes de Moderación
+    # ---------------------------------------------------------------
+    cat_vip = await nueva_categoria("👁️ VIP Espectros", overwrites_con_rol(rol_espectros))
+    await nuevo_texto(cat_vip, "🛋️ sala-privada", "Solo para Espectros.")
+
+    # ---------------------------------------------------------------
+    # 9. Moderación (solo staff)
+    # ---------------------------------------------------------------
+    mod_overwrites = {
+        everyone: discord.PermissionOverwrite(view_channel=False),
+    }
+    for sr in staff_roles:
+        mod_overwrites[sr] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+
+    cat_mod = await nueva_categoria("🛡️ Moderación", mod_overwrites)
+    await nuevo_texto(cat_mod, "📋 mod-logs", "Registro automático de acciones de moderación.")
+    await nuevo_texto(cat_mod, "🚨 reportes", "Reportes de usuarios.")
+    await nuevo_texto(cat_mod, "🗣️ chat-staff", "Discusión interna del staff.")
+    await nuevo_texto(cat_mod, "⚖️ sanciones", "Registro de warns, mutes y bans.")
+
+    print("✅ Todos los canales fueron creados.\n")
+    return ids_canales
+
+
+# =========================================================================
+# 🏁 EJECUCIÓN PRINCIPAL
+# =========================================================================
+
+@client.event
+async def on_ready():
+    print(f"🔌 Conectado como {client.user}")
+    tree.copy_global_to(guild=MY_GUILD)
+    await tree.sync(guild=MY_GUILD)
+    print("🏛️ Comando /setup sincronizado. Esperando ejecución manual desde Discord...")
+
+
+@tree.command(name="setup", description="[SOLO DUEÑO] Borra y recrea TODA la estructura del servidor. Irreversible.")
+async def setup(interaction: discord.Interaction):
+    # --- Restricción dura: solo el dueño puede ejecutar esto ---
+    if interaction.user.id != ID_DUEÑO:
+        await interaction.response.send_message(
+            "❌ No tienes autorización para ejecutar este comando.", ephemeral=True
+        )
         return
 
-    if bot.db is None:
+    guild = interaction.guild
+    if guild is None or guild.id != ID_SERVIDOR:
+        await interaction.response.send_message(
+            "❌ Este comando solo puede ejecutarse en el servidor configurado.", ephemeral=True
+        )
         return
 
-    # RECOMPENSA POR BUMP (Disboard)
-    if message.author.id == ID_BOT_BUMP and message.interaction:
-        usuario_bump = message.interaction.user
-        if "Bump done!" in message.embeds[0].description or "Bump efectuado" in message.embeds[0].description:
-            recompensa = 50
-            await bot.db["usuarios"].update_one({"_id": usuario_bump.id}, {"$inc": {"monedas": recompensa}}, upsert=True)
-            await message.channel.send(f"📢 ¡Gracias por hacer Bump, {usuario_bump.mention}! Has recibido **{recompensa} 🪙**.")
-        return
-
-    miembro = message.author
-    coleccion_usuarios = bot.db["usuarios"]
-    datos_usuario = await coleccion_usuarios.find_one({"_id": miembro.id})
-    
-    if not datos_usuario:
-        datos_usuario = {"_id": miembro.id, "xp": 0, "nivel": 1, "monedas": 0}
-
-    nuevo_nivel = datos_usuario.get("nivel", 1)
-    
-    if nuevo_nivel >= 100:
-        return
-
-    # Ritmo de ganancia de XP equilibrado
-    xp_ganada = random.randint(10, 20)
-    nueva_xp = datos_usuario.get("xp", 0) + xp_ganada
-
-    # Curva matemática exponencial: Lenta tras nivel 5
-    if nuevo_nivel < 5:
-        xp_necesaria = nuevo_nivel * 120
-    else:
-        xp_necesaria = int((nuevo_nivel ** 2.2) * 45)
-
-    if nueva_xp >= xp_necesaria:
-        nuevo_nivel += 1
-        nueva_xp -= xp_necesaria
-        await message.channel.send(f"🎖️ ¡{miembro.mention} ascendió al nivel **{nuevo_nivel}**!")
-
-        # Otorgar rangos honoríficos dinámicos basados en el nombre
-        if nuevo_nivel in ROLES_NIVEL:
-            nombre_rol = ROLES_NIVEL[nuevo_nivel]
-            rol_a_dar = discord.utils.get(message.guild.roles, name=nombre_rol)
-            if rol_a_dar:
-                await miembro.add_roles(rol_a_dar)
-                await message.channel.send(f"⚔️ ¡Se le ha otorgado el rango honorífico **{rol_a_dar.name}** a {miembro.mention}!")
-
-    # Probabilidad de recolección de monedas
-    es_congresista = any(rol.id == ID_ROL_CONGRESISTA for rol in miembro.roles) if hasattr(miembro, 'roles') else False
-    probabilidad = 0.15 if es_congresista else 0.05
-    nuevas_monedas = datos_usuario.get("monedas", 0)
-    
-    if random.random() < probabilidad:
-        nuevas_monedas += random.randint(1, 5)
-        await message.add_reaction("🪙") 
-
-    await coleccion_usuarios.update_one(
-        {"_id": miembro.id},
-        {"$set": {"xp": nueva_xp, "nivel": nuevo_nivel, "monedas": nuevas_monedas}},
-        upsert=True
+    await interaction.response.send_message(
+        "⚠️ **Iniciando setup destructivo.** Esto va a borrar todos los roles y todos los canales "
+        "dentro de categorías, y luego recrear todo de cero. Revisa la consola/logs de Railway "
+        "para ver el progreso y los IDs finales.",
+        ephemeral=True
     )
 
-# =========================================================================
-# 💰 COMANDOS ECONÓMICOS INTERACTIVOS
-# =========================================================================
+    print(f"\n⚠️ /setup ejecutado por {interaction.user} (ID: {interaction.user.id})")
+    print(f"Esto va a BORRAR todos los roles y todos los canales dentro de categorías")
+    print(f"en '{guild.name}'. Esta acción es IRREVERSIBLE.\n")
 
-@bot.tree.command(name="perfil", description="Mira tu estatus en el Imperio.")
-async def perfil(interaction: discord.Interaction, usuario: discord.Member = None):
-    if bot.db is None: return await interaction.response.send_message("❌ Bóveda cerrada.", ephemeral=True)
-    usuario_obj = usuario or interaction.user
-    datos = await bot.db["usuarios"].find_one({"_id": usuario_obj.id})
-    if not datos: return await interaction.response.send_message(f"📜 {usuario_obj.display_name} no tiene expediente asignado.")
+    await limpiar_servidor(guild)
+    roles = await crear_roles(guild)
+    canales = await crear_canales(guild, roles)
 
-    embed = discord.Embed(title=f"Perfil de {usuario_obj.display_name}", color=discord.Color.gold())
-    embed.add_field(name="🎖️ Nivel", value=str(datos.get("nivel", 1)))
-    embed.add_field(name="🪙 Billetera", value=f"{datos.get('monedas', 0)} 🪙")
-    embed.set_thumbnail(url=usuario_obj.display_avatar.url)
-    await interaction.response.send_message(embed=embed)
-
-@bot.tree.command(name="dar", description="Transfiere monedas de tu saldo a otro ciudadano.")
-async def dar(interaction: discord.Interaction, objetivo: discord.Member, cantidad: int):
-    if bot.db is None: return await interaction.response.send_message("❌ Bóveda cerrada.", ephemeral=True)
-    if cantidad <= 0: return await interaction.response.send_message("❌ Cantidad inválida.", ephemeral=True)
-    if objetivo.id == interaction.user.id: return await interaction.response.send_message("❌ No puedes darte dinero a ti mismo.", ephemeral=True)
-
-    remitente = await bot.db["usuarios"].find_one({"_id": interaction.user.id})
-    if not remitente or remitente.get("monedas", 0) < cantidad:
-        return await interaction.response.send_message("💸 No posees suficientes fondos.", ephemeral=True)
-
-    await bot.db["usuarios"].update_one({"_id": interaction.user.id}, {"$inc": {"monedas": -cantidad}})
-    await bot.db["usuarios"].update_one({"_id": objetivo.id}, {"$inc": {"monedas": cantidad}}, upsert=True)
-    await interaction.response.send_message(f"🤝 {interaction.user.mention} le ha transferido **{cantidad} 🪙** a {objetivo.mention}.")
-
-@bot.tree.command(name="robar", description="Intenta saquear la billetera de otro usuario (Riesgo alto).")
-async def robar(interaction: discord.Interaction, objetivo: discord.Member):
-    if bot.db is None: return await interaction.response.send_message("❌ Bóveda cerrada.", ephemeral=True)
-    if objetivo.id == interaction.user.id: return await interaction.response.send_message("❌ No puedes robarte a ti mismo.", ephemeral=True)
-    if objetivo.bot: return await interaction.response.send_message("❌ No puedes robarle a un autómata.", ephemeral=True)
-
-    victima_data = await bot.db["usuarios"].find_one({"_id": objetivo.id})
-    if not victima_data or victima_data.get("monedas", 0) < 10:
-        return await interaction.response.send_message("💸 La víctima está en la miseria, no vale la pena el riesgo.", ephemeral=True)
-
-    ladron_data = await bot.db["usuarios"].find_one({"_id": interaction.user.id})
-    multa = random.randint(15, 30)
-
-    if not ladron_data or ladron_data.get("monedas", 0) < multa:
-        return await interaction.response.send_message(f"🚨 No tienes suficiente capital para pagar la fianza si fallas (Mínimo: {multa} 🪙).", ephemeral=True)
-
-    # 🎲 Éxito del 40%
-    if random.random() < 0.40:
-        porcentaje_robado = random.uniform(0.10, 0.35)
-        botin = int(victima_data.get("monedas", 0) * porcentaje_robado)
-        if botin < 1: botin = 1
-
-        await bot.db["usuarios"].update_one({"_id": objetivo.id}, {"$inc": {"monedas": -botin}})
-        await bot.db["usuarios"].update_one({"_id": interaction.user.id}, {"$inc": {"monedas": botin}})
-        await interaction.response.send_message(f"🥷 ¡ÉXITO! {interaction.user.mention} asaltó a {objetivo.mention} en un callejón y huyó con **{botin} 🪙**.")
-    else:
-        await bot.db["usuarios"].update_one({"_id": interaction.user.id}, {"$inc": {"monedas": -multa}})
-        await bot.db["usuarios"].update_one({"_id": objetivo.id}, {"$inc": {"monedas": multa}})
-        await interaction.response.send_message(f"🚨 ¡FRACASO! Descubrieron a {interaction.user.mention} robando a {objetivo.mention}. Pagó una fianza forzada de **{multa} 🪙**.")
-
-# =========================================================================
-# 🛡️ COMANDOS DE MODERACIÓN IMPERIAL
-# =========================================================================
-
-@bot.tree.command(name="mute", description="Silencia temporalmente a un infractor mediante aislamiento.")
-@app_commands.default_permissions(moderate_members=True)
-async def mute(interaction: discord.Interaction, infractor: discord.Member, minutos: int, motivo: str = "Infracción de las leyes imperiales."):
-    duracion = datetime.timedelta(minutes=minutos)
-    
+    # --- Reordenar jerarquía de roles ---
+    print("📊 Reordenando jerarquía de roles...")
     try:
-        embed_dm = discord.Embed(title="⚠️ Has sido aislado temporalmente", color=discord.Color.orange())
-        embed_dm.add_field(name="Servidor", value=interaction.guild.name)
-        embed_dm.add_field(name="Duración", value=f"{minutos} minutos")
-        embed_dm.add_field(name="Motivo", value=motivo)
-        await infractor.send(embed=embed_dm)
-    except:
-        pass 
-
-    await infractor.timeout(duracion, reason=motivo)
-    await interaction.response.send_message(f"🤫 **{infractor.display_name}** ha sido aislado por {minutos} minutos. Motivo: {motivo}")
-
-@bot.tree.command(name="ban", description="Destierra permanentemente a un usuario del Imperio.")
-@app_commands.default_permissions(ban_members=True)
-async def ban(interaction: discord.Interaction, infractor: discord.Member, motivo: str = "Traición al Imperio."):
-    try:
-        embed_dm = discord.Embed(title="🚫 Has sido desterrado", color=discord.Color.red())
-        embed_dm.add_field(name="Servidor", value=interaction.guild.name)
-        embed_dm.add_field(name="Motivo", value=motivo)
-        await infractor.send(embed=embed_dm)
-    except:
-        pass
-
-    await infractor.ban(reason=motivo)
-    await interaction.response.send_message(f"🔨 **{infractor.display_name}** ha sido desterrado permanentemente del servidor. Motivo: {motivo}")
-
-@bot.tree.command(name="purge", description="Purga un número masivo de mensajes del canal.")
-@app_commands.default_permissions(manage_messages=True)
-async def purge(interaction: discord.Interaction, cantidad: int):
-    if cantidad <= 0 or cantidad > 100:
-        return await interaction.response.send_message("❌ La purga debe ser de entre 1 y 100 mensajes simultáneos.", ephemeral=True)
-    
-    await interaction.response.defer(ephemeral=True)
-    eliminados = await interaction.channel.purge(limit=cantidad)
-    await interaction.followup.send(f"🗑️ Purga completada. Se eliminaron **{len(eliminados)}** mensajes de la historia.", ephemeral=True)
-
-# =========================================================================
-# 🎭 PANALES DE REACCIÓN PERSISTENTES CON MONGODB
-# =========================================================================
-
-@bot.tree.command(name="desplegar_autoroles", description="[ADMIN] Despliega los paneles de auto-roles por reacción vinculados a MongoDB.")
-@app_commands.default_permissions(administrator=True)
-async def desplegar_autoroles(interaction: discord.Interaction):
-    if bot.db is None: 
-        return await interaction.response.send_message("❌ Sin conexión a la Bóveda.", ephemeral=True)
-    
-    await interaction.response.defer(ephemeral=True)
-    canal = interaction.channel
-    coleccion_msg = bot.db["autoroles_mensajes"]
-
-    async def generar_bloque(titulo, color, diccionario_mapeo):
-        desc = "Reacciona al emoji correspondiente para reclamar tu identidad dentro del Imperio:\n\n"
-        for emoji, nombre_rol in diccionario_mapeo.items():
-            desc += f"{emoji} ➔ **{nombre_rol}**\n"
-        
-        embed = discord.Embed(title=titulo, color=color, description=desc)
-        msg = await canal.send(embed=embed)
-        
-        for emoji in diccionario_mapeo.keys():
-            await msg.add_reaction(emoji)
-        
-        await coleccion_msg.update_one(
-            {"_id": msg.id},
-            {"$set": {"mapeo": diccionario_mapeo}},
-            upsert=True
+        posiciones = {}
+        orden_deseado = (
+            [nombre for nombre, _, _ in ROLES_JERARQUIA] +
+            [f"Nivel {n}" for n, _ in reversed(ROLES_NIVEL_DEF)] +
+            [ROL_HABITANTE]
         )
+        posicion_actual = len(guild.roles)
+        for nombre in orden_deseado:
+            if nombre in roles:
+                posiciones[roles[nombre]] = posicion_actual
+                posicion_actual -= 1
+        await guild.edit_role_positions(positions=posiciones)
+        print("✅ Jerarquía reordenada.\n")
+    except discord.HTTPException as e:
+        print(f"⚠️ No se pudo reordenar automáticamente la jerarquía: {e}")
+        print("   Puedes reordenarla manualmente arrastrando los roles en la configuración del servidor.\n")
 
-    await generar_bloque("🌎 Ministerio de Fronteras: Tu Región", 0x1982C4, DICCIONARIO_AUTOROLES["Regiones"])
-    await generar_bloque("⏳ Ministerio del Tiempo: Tu Edad", 0xFF8C00, DICCIONARIO_AUTOROLES["Edades"])
-    await generar_bloque("⚧️ Ministerio de Identidad: Género", 0xFF9ED2, DICCIONARIO_AUTOROLES["Generos"])
-    await generar_bloque("🗣️ Ministerio de Identidad: Pronombres", 0x8AC926, DICCIONARIO_AUTOROLES["Pronombres"])
-    await generar_bloque("🌈 Ministerio de Identidad: Orientación", 0x6A4C93, DICCIONARIO_AUTOROLES["Sexualidades"])
-    await generar_bloque("📚 Clasificación de Intereses", 0x2E8B57, DICCIONARIO_AUTOROLES["Nichos"])
-    await generar_bloque("🎨 Paleta del Régimen: Colores", 0xFFD700, DICCIONARIO_AUTOROLES["Colores"])
+    # --- IMPRESIÓN FINAL DE IDs (en consola/logs de Railway) ---
+    print("\n" + "=" * 60)
+    print("🎉 SETUP COMPLETADO")
+    print("=" * 60)
 
-    await interaction.followup.send("✅ Todos los bloques de auto-roles han sido desplegados y asegurados en MongoDB.", ephemeral=True)
+    print("\n📋 IDs de Canales y Categorías:")
+    for nombre, id_ in canales.items():
+        print(f"{id_} ---- {nombre}")
 
-# =========================================================================
-# 🛍️ MERCADO IMPERIAL
-# =========================================================================
+    print("\n👥 IDs de Roles:")
+    for nombre, rol in roles.items():
+        print(f"{rol.id} ---- {nombre}")
 
-@bot.tree.command(name="tienda", description="Mercado Imperial.")
-async def tienda(interaction: discord.Interaction):
-    if bot.db is None: return await interaction.response.send_message("❌ Bóveda cerrada.", ephemeral=True)
-    objetos = await bot.db["tienda"].find().to_list(length=100)
-    embed = discord.Embed(title="🛍️ Tienda de Santuari", description="Usa `/comprar <nombre>`", color=discord.Color.purple())
-    for obj in objetos:
-        embed.add_field(name=f"🏷️ {obj['_id']}", value=f"**{obj['precio']} 🪙** - {obj['descripcion']}", inline=False)
-    await interaction.response.send_message(embed=embed)
+    print("\n💾 JSON para copiar a un archivo local:")
+    datos = {
+        "canales": canales,
+        "roles": {nombre: rol.id for nombre, rol in roles.items()},
+    }
+    print(json.dumps(datos, indent=2, ensure_ascii=False))
 
-@bot.tree.command(name="comprar", description="Compra un objeto.")
-@app_commands.describe(objeto="Nombre exacto del objeto.")
-async def comprar(interaction: discord.Interaction, objeto: str):
-    if bot.db is None: return await interaction.response.send_message("❌ Bóveda cerrada.", ephemeral=True)
-    item = await bot.db["tienda"].find_one({"_id": objeto})
-    if not item: return await interaction.response.send_message("❌ Objeto inexistente.", ephemeral=True)
+    try:
+        await interaction.followup.send(
+            "✅ **Setup completado.** Revisa los logs de Railway para copiar todos los IDs "
+            "(canales y roles) en formato `<ID> ---- Nombre`, más el JSON completo.",
+            ephemeral=True
+        )
+    except discord.HTTPException:
+        pass  # si el token de interacción ya expiró (proceso muy largo), no pasa nada; ya quedó en logs
 
-    comprador = await bot.db["usuarios"].find_one({"_id": interaction.user.id})
-    if not comprador or comprador.get("monedas", 0) < item["precio"]:
-        return await interaction.response.send_message("💸 Monedas insuficientes.", ephemeral=True)
 
-    await bot.db["usuarios"].update_one({"_id": interaction.user.id}, {"$inc": {"monedas": -item["precio"]}})
-    await interaction.response.send_message(f"🎉 **{interaction.user.display_name}** compró `{objeto}`.")
-    await interaction.channel.send(f"🔔 <@{ID_CANCILLER}>, debes gestionar la entrega de `{objeto}` para {interaction.user.mention}.")
+def main():
+    token = os.environ.get("DISCORD_TOKEN")
+    if not token:
+        print("❌ ERROR CRÍTICO: No se encontró DISCORD_TOKEN.")
+        sys.exit(1)
+    client.run(token)
 
-token = os.environ.get("DISCORD_TOKEN")
-if token:
-    bot.run(token)
-else:
-    print("❌ ERROR CRÍTICO: No se encontró el DISCORD_TOKEN.")
+
+if __name__ == "__main__":
+    main()
