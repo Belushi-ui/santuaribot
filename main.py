@@ -1,18 +1,17 @@
-import discord
-from discord import app_commands
-import os
+async def setup_hook(self):
+    mongo_uri = os.environ.get("MONGO_URI")
+    if mongo_uri:
+        # ... tu conexión a Mongo ...
+        pass
 
-intents = discord.Intents.default()
-client = discord.Client(intents=intents)
-tree = app_commands.CommandTree(client)
+    #  LIMPIEZA DE COMANDOS (solo si está activado)
+    if os.environ.get("LIMPIAR_COMANDOS") == "true":
+        print(" Limpiando comandos globales...")
+        self.tree.clear_commands(guild=None)
+        await self.tree.sync()
+        print(" Comandos limpios.")
 
-@client.event
-async def on_ready():
-    print("Limpiando comandos globales...")
-    tree.clear_commands(guild=None)
-    await tree.sync()
-    print(" Comandos globales borrados.")
-    await client.close()
-
-token = os.environ.get("DISCORD_TOKEN")
-client.run(token)
+Sincronizar comandos normalmente,
+    self.tree.copy_global_to(guild=MY_GUILD)
+    await self.tree.sync(guild=MY_GUILD)
+    print(" Comandos sincronizados.")
