@@ -40,14 +40,14 @@ ROLES_REACCION = {
     # 🧬 Género
     "👨": 1518762591340724374,  # Hombre
     "👩": 1518762591969743016,  # Mujer
-    "⚧️": 1518762592917520535,  # Transgénero
+    "🏳️‍⚧️": 1518762592917520535,  # Transgénero
     "🟡": 1518762594125615124,  # No binarie
     "❓": 1518762595086106766,  # Otro género
     
     # ❤️ Orientación
     "🤍": 1518762598965973012,  # Heterosexual
     "🧡": 1518762599238467727,  # Lesbiana
-    "🩷": 1518762600781975735,  # Bisexual
+    "💗": 1518762600781975735,  # Bisexual
     "💙": 1518762601587150918,  # Gay
     "🖤": 1518762604250660884,  # Asexual
     "🤎": 1518762604930138295,  # Alosexual
@@ -226,8 +226,8 @@ class ReclamarDrop(discord.ui.View):
 async def on_message(message: discord.Message):
     if message.author.bot or not message.guild: return
 
-    # 1. Drop Aleatorio
-    if random.random() < 0.02:
+   # 1. Drop Aleatorio (Cambiado a 6% de probabilidad)
+    if random.random() < 0.06:
         embed = discord.Embed(title="🎁 ¡Lluvia de Monedas!", description="Un cargamento de 🪙 **150 Monedas** ha caído. ¡Sé el primero en reclamarlo!", color=0xF1C40F)
         await message.channel.send(embed=embed, view=ReclamarDrop())
 
@@ -534,12 +534,12 @@ async def aplicar_autoroles(interaction: discord.Interaction):
 
     secciones = [
         {
-            "embed": discord.Embed(title="🧬 Selecciona tu Género", description="Reacciona al emoji correspondiente para obtener el rol:\n\n👨 Hombre\n👩 Mujer\n⚧️ Transgénero\n🟡 No binarie\n❓ Otro género", color=0x3498DB),
-            "emojis": ["👨", "👩", "⚧️", "🟡", "❓"]
+            "embed": discord.Embed(title="🧬 Selecciona tu Género", description="Reacciona al emoji correspondiente para obtener el rol:\n\n👨 Hombre\n👩 Mujer\n🏳️‍⚧️ Transgénero\n🟡 No binarie\n❓ Otro género", color=0x3498DB),
+            "emojis": ["👨", "👩", "🏳️‍⚧️", "🟡", "❓"]
         },
         {
-            "embed": discord.Embed(title="❤️ Selecciona tu Orientación", description="Reacciona al emoji correspondiente para obtener el rol:\n\n🤍 Heterosexual\n🧡 Lesbiana\n🩷 Bisexual\n💙 Gay\n🖤 Asexual\n🤎 Alosexual", color=0xE74C3C),
-            "emojis": ["🤍", "🧡", "🩷", "💙", "🖤", "🤎"]
+            "embed": discord.Embed(title="❤️ Selecciona tu Orientación", description="Reacciona al emoji correspondiente para obtener el rol:\n\n🤍 Heterosexual\n🧡 Lesbiana\n💗 Bisexual\n💙 Gay\n🖤 Asexual\n🤎 Alosexual", color=0xE74C3C),
+            "emojis": ["🤍", "🧡", "💗", "💙", "🖤", "🤎"]
         },
         {
             "embed": discord.Embed(title="🌍 Selecciona tu Región", description="Reacciona al emoji correspondiente para obtener el rol:\n\n🦅 Norteamérica\n🌎 Sudamérica\n🌍 Europa\n🌏 Asia", color=0x2ECC71),
@@ -558,7 +558,10 @@ async def aplicar_autoroles(interaction: discord.Interaction):
     for seccion in secciones:
         mensaje = await interaction.channel.send(embed=seccion["embed"])
         for emoji in seccion["emojis"]:
-            await mensaje.add_reaction(emoji)
+            try:
+                await mensaje.add_reaction(emoji)
+            except discord.HTTPException as e:
+                print(f"⚠️ Error añadiendo el emoji {emoji}: {e}")
 
 @client.tree.command(name="dar_rol_multi", description="[OWNER] Da un rol a varios usuarios (menciónalos o escribe sus IDs).")
 async def dar_rol_multi(interaction: discord.Interaction, rol: discord.Role, usuarios: str):
