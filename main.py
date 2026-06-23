@@ -7,30 +7,73 @@
 # - Economía (🪙), Top, Perfil, Donar, Robar.
 # - Tienda y Objetos (Amuleto de la Suerte, Mutes, Emojis).
 # - Casino (Ruleta y Blackjack interactivo).
-# - Moderación (Kick, Ban, Timeout, Warn) y Starboard.
+# - Moderación (Kick, Ban, Timeout, Warn, Purge) y Starboard.
+# - Sistema de Autoroles Interactivos y Asignación de Roles por Lotes.
 # - Eventos aleatorios de "Lluvia de Monedas".
 # =========================================================================
 
 import discord
 from discord import app_commands
-from discord.ext import tasks
 import motor.motor_asyncio
 import os
 import sys
 import random
 import time
 import asyncio
+import re
 from datetime import timedelta
 
 # --- CONFIGURACIÓN DE IDs ---
 ID_SERVIDOR = 1517885569231749240
 ID_DUEÑO = 1360882776706125874
 ID_CANAL_STARBOARD = 1518814340919328858
-ID_CANAL_MODLOGS = 1518762621937909862 # Asegúrate de que sea tu canal de logs
+ID_CANAL_MODLOGS = 1518762621937909862 
+ID_CANAL_AUTOROLES = 1518804287835345198
+
 PRECIO_MUTE = 2000
 PRECIO_AMULETO = 1000
 PRECIO_EMOJI = 5000
 PRECIO_STICKER = 5000
+
+# Diccionario Global de Emojis -> ID de Rol
+ROLES_REACCION = {
+    # 🧬 Género
+    "👨": 1518762591340724374,  # Hombre
+    "👩": 1518762591969743016,  # Mujer
+    "⚧️": 1518762592917520535,  # Transgénero
+    "🟡": 1518762594125615124,  # No binarie
+    "❓": 1518762595086106766,  # Otro género
+    
+    # ❤️ Orientación
+    "🤍": 1518762598965973012,  # Heterosexual
+    "🧡": 1518762599238467727,  # Lesbiana
+    "🩷": 1518762600781975735,  # Bisexual
+    "💙": 1518762601587150918,  # Gay
+    "🖤": 1518762604250660884,  # Asexual
+    "🤎": 1518762604930138295,  # Alosexual
+
+    # 🌍 Región
+    "🦅": 1518762595744481301,  # Norteamérica
+    "🌎": 1518762596210053234,  # Sudamérica
+    "🌍": 1518762597405560974,  # Europa
+    "🌏": 1518762598261063840,  # Asia
+
+    # 📅 Edad
+    "🎓": 1518762613943701564,  # 18-25
+    "💼": 1518762614749008003,  # 26+
+
+    # 🎨 Colores
+    "🔴": 1518762581257617602,  # Carmesí
+    "🟠": 1518762582578692137,  # Ámbar
+    "🟡": 1518762584151560325,  # Dorado
+    "🟢": 1518762584931565598,  # Esmeralda
+    "🔵": 1518762585720356916,  # Zafiro
+    "🟣": 1518762586693304442,  # Amatista
+    "🌸": 1518762587741880361,  # Rosa
+    "⚪": 1518762588937126068,  # Marfil
+    "⚫": 1518762589709013052,  # Obsidiana
+    "🧊": 1518762590275371040   # Celeste
+}
 
 class SantuariBot(discord.Client):
     def __init__(self):
@@ -42,7 +85,6 @@ class SantuariBot(discord.Client):
         self.cooldowns_xp = {}
 
     async def setup_hook(self):
-        # Conexión a MongoDB
         mongo_uri = os.environ.get("MONGO_URI")
         if not mongo_uri:
             print("❌ ERROR: No se encontró MONGO_URI.")
@@ -50,7 +92,8 @@ class SantuariBot(discord.Client):
             
         self.mongo_client = motor.motor_asyncio.AsyncIOMotorClient(mongo_uri)
         self.db = self.mongo_client.santuari
-        self.users = self.db.usuarios
+        
+        self.db_users = self.db.usuarios
         self.starboard = self.db.starboard
         
         guild = discord.Object(id=ID_SERVIDOR)
@@ -65,7 +108,7 @@ client = SantuariBot()
 # =========================================================================
 
 async def get_user_data(user_id: int):
-    data = await client.users.find_one({"_id": user_id})
+    data = await client.db_users.find_one({"_id": user_id})
     if not data:
         data = {
             "_id": user_id,
@@ -74,14 +117,13 @@ async def get_user_data(user_id: int):
             "mutes_comprados": 0, "mutes_usados_hoy": 0,
             "amuleto": False
         }
-        await client.users.insert_one(data)
+        await client.db_users.insert_one(data)
     return data
 
 async def update_user(user_id: int, query: dict):
-    await client.users.update_one({"_id": user_id}, query, upsert=True)
+    await client.db_users.update_one({"_id": user_id}, query, upsert=True)
 
 def calcular_xp_requerida(nivel: int):
-    # Fórmula Exponencial: 100 * (nivel ^ 1.5)
     return int(100 * (nivel ** 1.5))
 
 # =========================================================================
@@ -89,7 +131,7 @@ def calcular_xp_requerida(nivel: int):
 # =========================================================================
 
 def carta_aleatoria():
-    cartas = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11] # 11 es As
+    cartas = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]
     return random.choice(cartas)
 
 def puntaje_mano(mano):
@@ -118,7 +160,6 @@ class BlackjackView(discord.ui.View):
         
         if finalizado:
             embed.add_field(name=f"Mano del Croupier ({pts_dealer})", value=f"{self.mano_dealer}", inline=False)
-            
             ganancia = 0
             amuleto_usado = False
             
@@ -167,10 +208,6 @@ class BlackjackView(discord.ui.View):
             self.mano_dealer.append(carta_aleatoria())
         await self.actualizar_embed(interaction, finalizado=True)
 
-# =========================================================================
-# 💰 DROPS Y EVENTOS
-# =========================================================================
-
 class ReclamarDrop(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
@@ -182,19 +219,19 @@ class ReclamarDrop(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=None)
 
 # =========================================================================
-# 📩 EVENTOS DEL SERVIDOR (XP, Drops, Starboard)
+# 📩 EVENTOS DEL SERVIDOR (Mensajes, XP, Autoroles, Starboard)
 # =========================================================================
 
 @client.event
 async def on_message(message: discord.Message):
     if message.author.bot or not message.guild: return
 
-    # 1. DROP ALEATORIO (2% de probabilidad por mensaje)
+    # 1. Drop Aleatorio
     if random.random() < 0.02:
         embed = discord.Embed(title="🎁 ¡Lluvia de Monedas!", description="Un cargamento de 🪙 **150 Monedas** ha caído. ¡Sé el primero en reclamarlo!", color=0xF1C40F)
         await message.channel.send(embed=embed, view=ReclamarDrop())
 
-    # 2. SISTEMA DE EXPERIENCIA (Cooldown de 60s)
+    # 2. Sistema de Experiencia
     ahora = time.time()
     ultimo_mensaje = client.cooldowns_xp.get(message.author.id, 0)
     
@@ -208,13 +245,10 @@ async def on_message(message: discord.Message):
         xp_req = calcular_xp_requerida(nivel_actual)
 
         if nueva_xp >= xp_req:
-            # Subió de nivel
             nuevo_nivel = nivel_actual + 1
             await update_user(message.author.id, {"$set": {"xp": nueva_xp, "nivel": nuevo_nivel}})
             
-            # Revisar si es múltiplo de 10 para auto-rol
             if nuevo_nivel % 10 == 0 and nuevo_nivel <= 100:
-                # Busca el rol que contenga "Nivel X" en su nombre (ignorando fuentes raras)
                 rol_target = discord.utils.find(lambda r: f"Nivel {nuevo_nivel}" in r.name, message.guild.roles)
                 if rol_target:
                     try:
@@ -222,7 +256,6 @@ async def on_message(message: discord.Message):
                     except discord.Forbidden:
                         pass
             
-            # Anuncio silencioso pero bonito en el chat
             embed_lvl = discord.Embed(description=f"✨ **{message.author.display_name}** ha alcanzado el **Nivel {nuevo_nivel}**.", color=0x57A773)
             await message.channel.send(embed=embed_lvl, delete_after=10)
         else:
@@ -230,35 +263,75 @@ async def on_message(message: discord.Message):
 
 @client.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
-    # STARBOARD SYSTEM
-    if payload.emoji.name != "⭐": return
-    
-    canal = client.get_channel(payload.channel_id)
-    mensaje = await canal.fetch_message(payload.message_id)
-    
-    # Contar estrellas
-    reaccion_estrella = discord.utils.get(mensaje.reactions, emoji="⭐")
-    if not reaccion_estrella or reaccion_estrella.count < 3: return
+    # IGNORAR REACCIONES DEL PROPIO BOT
+    if payload.user_id == client.user.id:
+        return
 
-    # Buscar en BD
-    star_doc = await client.starboard.find_one({"msg_id": mensaje.id})
-    canal_starboard = client.get_channel(ID_CANAL_STARBOARD)
-    
-    embed = discord.Embed(description=mensaje.content, color=0xFFD60A)
-    embed.set_author(name=mensaje.author.display_name, icon_url=mensaje.author.display_avatar.url)
-    if mensaje.attachments:
-        embed.set_image(url=mensaje.attachments[0].url)
-    
-    contenido_msg = f"⭐ **{reaccion_estrella.count}** | {canal.mention}"
+    # 1. SISTEMA DE AUTOROLES
+    if payload.channel_id == ID_CANAL_AUTOROLES:
+        guild = client.get_guild(payload.guild_id)
+        if not guild: return
 
-    if star_doc:
+        rol_id = ROLES_REACCION.get(payload.emoji.name)
+        if rol_id:
+            rol = guild.get_role(rol_id)
+            miembro = guild.get_member(payload.user_id)
+            if rol and miembro:
+                try:
+                    await miembro.add_roles(rol)
+                except discord.Forbidden:
+                    pass
+        return  # Importante: Detenemos aquí para que los autoroles no disparen la lógica del starboard
+
+    # 2. SISTEMA DE STARBOARD
+    if payload.emoji.name == "⭐":
+        canal = client.get_channel(payload.channel_id)
+        if not canal: return
         try:
-            msg_sb = await canal_starboard.fetch_message(star_doc["sb_msg_id"])
-            await msg_sb.edit(content=contenido_msg, embed=embed)
-        except: pass
-    else:
-        msg_sb = await canal_starboard.send(content=contenido_msg, embed=embed)
-        await client.starboard.insert_one({"msg_id": mensaje.id, "sb_msg_id": msg_sb.id})
+            mensaje = await canal.fetch_message(payload.message_id)
+        except discord.NotFound:
+            return
+        
+        reaccion_estrella = discord.utils.get(mensaje.reactions, emoji="⭐")
+        if not reaccion_estrella or reaccion_estrella.count < 3: return
+
+        star_doc = await client.starboard.find_one({"msg_id": mensaje.id})
+        canal_starboard = client.get_channel(ID_CANAL_STARBOARD)
+        if not canal_starboard: return
+        
+        embed = discord.Embed(description=mensaje.content, color=0xFFD60A)
+        embed.set_author(name=mensaje.author.display_name, icon_url=mensaje.author.display_avatar.url)
+        if mensaje.attachments:
+            embed.set_image(url=mensaje.attachments[0].url)
+        
+        contenido_msg = f"⭐ **{reaccion_estrella.count}** | {canal.mention}"
+
+        if star_doc:
+            try:
+                msg_sb = await canal_starboard.fetch_message(star_doc["sb_msg_id"])
+                await msg_sb.edit(content=contenido_msg, embed=embed)
+            except Exception:
+                pass
+        else:
+            msg_sb = await canal_starboard.send(content=contenido_msg, embed=embed)
+            await client.starboard.insert_one({"msg_id": mensaje.id, "sb_msg_id": msg_sb.id})
+
+@client.event
+async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
+    # SISTEMA DE QUITAR AUTOROLES
+    if payload.channel_id == ID_CANAL_AUTOROLES:
+        guild = client.get_guild(payload.guild_id)
+        if not guild: return
+
+        rol_id = ROLES_REACCION.get(payload.emoji.name)
+        if rol_id:
+            rol = guild.get_role(rol_id)
+            miembro = guild.get_member(payload.user_id)
+            if rol and miembro:
+                try:
+                    await miembro.remove_roles(rol)
+                except discord.Forbidden:
+                    pass
 
 # =========================================================================
 # 🛍️ COMANDOS DE ECONOMÍA Y DIVERSIÓN
@@ -274,7 +347,7 @@ async def perfil(interaction: discord.Interaction, usuario: discord.Member = Non
     xp_req = calcular_xp_requerida(nivel)
     xp_base = calcular_xp_requerida(nivel - 1) if nivel > 1 else 0
     
-    progreso = (xp_actual - xp_base) / (xp_req - xp_base)
+    progreso = (xp_actual - xp_base) / (xp_req - xp_base) if xp_req > xp_base else 0
     bar_len = 10
     lleno = int(progreso * bar_len)
     barra = "🟩" * lleno + "⬛" * (bar_len - lleno)
@@ -312,32 +385,27 @@ async def tienda(interaction: discord.Interaction):
 ])
 async def comprar(interaction: discord.Interaction, item: app_commands.Choice[str]):
     data = await get_user_data(interaction.user.id)
-    
     precios = {"amuleto": PRECIO_AMULETO, "mute": PRECIO_MUTE, "emoji": PRECIO_EMOJI, "sticker": PRECIO_STICKER}
     precio = precios[item.value]
     
     if data["monedas"] < precio:
-        await interaction.response.send_message("❌ No tienes suficientes monedas.", ephemeral=True)
-        return
+        return await interaction.response.send_message("❌ No tienes suficientes monedas.", ephemeral=True)
 
     if item.value == "amuleto":
         if data.get("amuleto"):
-            await interaction.response.send_message("❌ Ya tienes un Amuleto activo.", ephemeral=True)
-            return
+            return await interaction.response.send_message("❌ Ya tienes un Amuleto activo.", ephemeral=True)
         await update_user(interaction.user.id, {"$inc": {"monedas": -precio}, "$set": {"amuleto": True}})
         await interaction.response.send_message("✅ Has comprado un **Amuleto de la Suerte**.")
         
     elif item.value == "mute":
         if data.get("mutes_usados_hoy", 0) >= 5:
-            await interaction.response.send_message("❌ Has alcanzado el límite diario de compras de mutes (5).", ephemeral=True)
-            return
+            return await interaction.response.send_message("❌ Has alcanzado el límite diario (5).", ephemeral=True)
         await update_user(interaction.user.id, {"$inc": {"monedas": -precio, "mutes_comprados": 1, "mutes_usados_hoy": 1}})
         await interaction.response.send_message("✅ Has comprado un **Tóken de Muteo**. Usa `/castigar` para utilizarlo.")
         
     else:
-        # Emojis y Stickers avisan al staff
         await update_user(interaction.user.id, {"$inc": {"monedas": -precio}})
-        await interaction.response.send_message(f"✅ Has comprado el derecho a un **{item.name}**. Abre un ticket para que el Staff lo suba.")
+        await interaction.response.send_message(f"✅ Has comprado el derecho a un **{item.name}**. Abre un ticket para reclamarlo al Staff.")
 
 @client.tree.command(name="gamble", description="Apuesta tus monedas.")
 @app_commands.choices(juego=[
@@ -346,23 +414,20 @@ async def comprar(interaction: discord.Interaction, item: app_commands.Choice[st
 ])
 async def gamble(interaction: discord.Interaction, juego: app_commands.Choice[str], apuesta: int):
     if apuesta <= 0:
-        await interaction.response.send_message("❌ Apuesta inválida.", ephemeral=True)
-        return
+        return await interaction.response.send_message("❌ Apuesta inválida.", ephemeral=True)
         
     data = await get_user_data(interaction.user.id)
     if data["monedas"] < apuesta:
-        await interaction.response.send_message("❌ No tienes suficientes monedas.", ephemeral=True)
-        return
+        return await interaction.response.send_message("❌ No tienes suficientes monedas.", ephemeral=True)
 
     if juego.value == "ruleta":
-        ganar = random.choice([True, False])
-        if ganar:
+        if random.choice([True, False]):
             await update_user(interaction.user.id, {"$inc": {"monedas": apuesta}})
             await interaction.response.send_message(f"🎰 ¡La ruleta giró y GANASTE! Recibes 🪙 **{apuesta}**.")
         else:
             if data.get("amuleto"):
                 await update_user(interaction.user.id, {"$set": {"amuleto": False}})
-                await interaction.response.send_message("🎰 La ruleta giró y perdiste... ¡Pero tu **Amuleto de la Suerte** se rompió y salvó tus monedas!")
+                await interaction.response.send_message("🎰 La ruleta giró y perdiste... ¡Pero tu **Amuleto de la Suerte** salvó tus monedas!")
             else:
                 await update_user(interaction.user.id, {"$inc": {"monedas": -apuesta}})
                 await interaction.response.send_message(f"🎰 La ruleta giró y PERDISTE. Se te han restado 🪙 **{apuesta}**.")
@@ -374,21 +439,18 @@ async def gamble(interaction: discord.Interaction, juego: app_commands.Choice[st
 @client.tree.command(name="robar", description="Intenta robar monedas a otro usuario (40% éxito).")
 async def robar(interaction: discord.Interaction, victima: discord.Member):
     if victima.bot or victima == interaction.user:
-        await interaction.response.send_message("❌ Objetivo inválido.", ephemeral=True)
-        return
+        return await interaction.response.send_message("❌ Objetivo inválido.", ephemeral=True)
         
     data_ladron = await get_user_data(interaction.user.id)
     data_victima = await get_user_data(victima.id)
     
     if data_ladron["monedas"] < 500:
-        await interaction.response.send_message("❌ Necesitas al menos 500 monedas de fondo para asumir la multa si fallas.", ephemeral=True)
-        return
+        return await interaction.response.send_message("❌ Necesitas al menos 500 monedas de fondo.", ephemeral=True)
     if data_victima["monedas"] < 100:
-        await interaction.response.send_message("❌ Esa persona es demasiado pobre para robarle.", ephemeral=True)
-        return
+        return await interaction.response.send_message("❌ Esa persona es demasiado pobre para robarle.", ephemeral=True)
         
-    if random.random() < 0.40: # 40% éxito
-        botin = int(data_victima["monedas"] * 0.15) # Roba 15%
+    if random.random() < 0.40:
+        botin = int(data_victima["monedas"] * 0.15)
         await update_user(interaction.user.id, {"$inc": {"monedas": botin}})
         await update_user(victima.id, {"$inc": {"monedas": -botin}})
         await interaction.response.send_message(f"🥷 ¡Éxito! Lograste robarle 🪙 **{botin}** a {victima.display_name}.")
@@ -432,13 +494,11 @@ async def mute(interaction: discord.Interaction, usuario: discord.Member, minuto
 @client.tree.command(name="castigar", description="Gasta un Tóken de Muteo para silenciar a alguien por 5 minutos.")
 async def castigar(interaction: discord.Interaction, victima: discord.Member):
     if victima.bot or victima.guild_permissions.administrator:
-        await interaction.response.send_message("❌ No puedes mutear a esa entidad.", ephemeral=True)
-        return
+        return await interaction.response.send_message("❌ No puedes mutear a esa entidad.", ephemeral=True)
         
     data = await get_user_data(interaction.user.id)
     if data.get("mutes_comprados", 0) <= 0:
-        await interaction.response.send_message("❌ No tienes Tókens de Muteo. Cómpralos en la `/tienda`.", ephemeral=True)
-        return
+        return await interaction.response.send_message("❌ No tienes Tókens de Muteo.", ephemeral=True)
         
     duracion = discord.utils.utcnow() + timedelta(minutes=5)
     try:
@@ -447,6 +507,99 @@ async def castigar(interaction: discord.Interaction, victima: discord.Member):
         await interaction.response.send_message(f"💸 Has gastado un tóken. {victima.mention} ha sido silenciado por 5 minutos.")
     except discord.Forbidden:
         await interaction.response.send_message("❌ El bot no tiene permisos suficientes para mutear a esta persona.", ephemeral=True)
+
+@client.tree.command(name="purge", description="[STAFF] Elimina una cantidad específica de mensajes.")
+@app_commands.default_permissions(manage_messages=True)
+async def purge(interaction: discord.Interaction, cantidad: int):
+    if cantidad < 1 or cantidad > 100:
+        return await interaction.response.send_message("❌ La cantidad debe estar entre 1 y 100.", ephemeral=True)
+    
+    await interaction.response.defer(ephemeral=True)
+    eliminados = await interaction.channel.purge(limit=cantidad)
+    await interaction.followup.send(f"🧹 Se han eliminado **{len(eliminados)}** mensajes correctamente.")
+
+# =========================================================================
+# ⚙️ COMANDOS EXCLUSIVOS DEL DUEÑO
+# =========================================================================
+
+@client.tree.command(name="aplicar_autoroles", description="[OWNER] Despliega los embeds de autoroles en el canal configurado.")
+async def aplicar_autoroles(interaction: discord.Interaction):
+    if interaction.user.id != ID_DUEÑO:
+        return await interaction.response.send_message("❌ No tienes permiso para usar este comando.", ephemeral=True)
+    
+    if interaction.channel_id != ID_CANAL_AUTOROLES:
+        return await interaction.response.send_message(f"❌ Este comando solo se puede usar en <#{ID_CANAL_AUTOROLES}>.", ephemeral=True)
+
+    await interaction.response.send_message("Generando sistema de autoroles...", ephemeral=True)
+
+    secciones = [
+        {
+            "embed": discord.Embed(title="🧬 Selecciona tu Género", description="Reacciona al emoji correspondiente para obtener el rol:\n\n👨 Hombre\n👩 Mujer\n⚧️ Transgénero\n🟡 No binarie\n❓ Otro género", color=0x3498DB),
+            "emojis": ["👨", "👩", "⚧️", "🟡", "❓"]
+        },
+        {
+            "embed": discord.Embed(title="❤️ Selecciona tu Orientación", description="Reacciona al emoji correspondiente para obtener el rol:\n\n🤍 Heterosexual\n🧡 Lesbiana\n🩷 Bisexual\n💙 Gay\n🖤 Asexual\n🤎 Alosexual", color=0xE74C3C),
+            "emojis": ["🤍", "🧡", "🩷", "💙", "🖤", "🤎"]
+        },
+        {
+            "embed": discord.Embed(title="🌍 Selecciona tu Región", description="Reacciona al emoji correspondiente para obtener el rol:\n\n🦅 Norteamérica\n🌎 Sudamérica\n🌍 Europa\n🌏 Asia", color=0x2ECC71),
+            "emojis": ["🦅", "🌎", "🌍", "🌏"]
+        },
+        {
+            "embed": discord.Embed(title="📅 Selecciona tu Rango de Edad", description="Reacciona al emoji correspondiente para obtener el rol:\n\n🎓 18-25\n💼 26+", color=0xF1C40F),
+            "emojis": ["🎓", "💼"]
+        },
+        {
+            "embed": discord.Embed(title="🎨 Selecciona tu Color", description="Reacciona al emoji correspondiente para obtener el rol:\n\n🔴 Carmesí\n🟠 Ámbar\n🟡 Dorado\n🟢 Esmeralda\n🔵 Zafiro\n🟣 Amatista\n🌸 Rosa\n⚪ Marfil\n⚫ Obsidiana\n🧊 Celeste", color=0x9B59B6),
+            "emojis": ["🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "🌸", "⚪", "⚫", "🧊"]
+        }
+    ]
+
+    for seccion in secciones:
+        mensaje = await interaction.channel.send(embed=seccion["embed"])
+        for emoji in seccion["emojis"]:
+            await mensaje.add_reaction(emoji)
+
+@client.tree.command(name="dar_rol_multi", description="[OWNER] Da un rol a varios usuarios (menciónalos o escribe sus IDs).")
+async def dar_rol_multi(interaction: discord.Interaction, rol: discord.Role, usuarios: str):
+    if interaction.user.id != ID_DUEÑO:
+        return await interaction.response.send_message("❌ Comando restringido al dueño del servidor.", ephemeral=True)
+
+    await interaction.response.defer(ephemeral=False)
+    
+    # Extraer todos los IDs de menciones o texto plano
+    ids_encontrados = set(re.findall(r'\d+', usuarios))
+    
+    if not ids_encontrados:
+        return await interaction.followup.send("❌ No se detectó ningún usuario o ID válido en tu texto.")
+
+    asignados = []
+    errores = []
+
+    for user_id_str in ids_encontrados:
+        try:
+            member = interaction.guild.get_member(int(user_id_str))
+            if not member:
+                member = await interaction.guild.fetch_member(int(user_id_str))
+            
+            if member and rol not in member.roles:
+                await member.add_roles(rol)
+                asignados.append(member.display_name)
+        except discord.NotFound:
+            errores.append(f"ID {user_id_str} (No existe)")
+        except discord.Forbidden:
+            errores.append(f"ID {user_id_str} (Jerarquía/Permisos)")
+        except Exception:
+            errores.append(f"ID {user_id_str} (Error inesperado)")
+
+    embed = discord.Embed(title="✅ Asignación Múltiple", color=0x2ECC71)
+    embed.add_field(name="Rol Aplicado", value=rol.mention, inline=False)
+    embed.add_field(name=f"Asignados con éxito ({len(asignados)})", value=", ".join(asignados) or "Ninguno", inline=False)
+    
+    if errores:
+        embed.add_field(name=f"Errores encontrados ({len(errores)})", value="\n".join(errores)[:1024], inline=False)
+    
+    await interaction.followup.send(embed=embed)
 
 # =========================================================================
 # 🏁 ARRANQUE DE MOTOR
