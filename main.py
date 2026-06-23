@@ -1,30 +1,10 @@
 # =========================================================================
-# 🔧 AJUSTAR — REFUERZO DE PERMISOS POST-SETUP
+# 🖼️ COMANDO SCRIPT — PUBLICADOR DE EMBEDS ESTÉTICOS Y AUTOROLES
 # =========================================================================
 # QUÉ HACE ESTE BOT:
-#   Expone un único comando slash /ajustar, ejecutable SOLO por el usuario
-#   con ID_DUEÑO, que:
-#
-#   1. Blinda los canales de "Información del Servidor" (bienvenidas,
-#      reglas, guía-del-servidor): nadie puede crear hilos, hacer
-#      @here/@everyone, ni añadir reacciones — solo el bot puede reaccionar.
-#   2. Aplica el mismo blindaje (sin hilos, sin @here/@everyone, sin
-#      reacciones de usuarios) a: presentación, reglas-de-mesa,
-#      presentación-de-personajes, y a cualquier canal de autoroles.
-#   3. En los canales de votación (votar-códigos, votar-dibujos): sin
-#      hilos, sin @here/@everyone, PERO SÍ permite reacciones (para votar).
-#   4. Bloquea la creación de hilos en TODOS los canales de texto del
-#      servidor y prohíbe explícitamente las menciones masivas.
-#   5. Restringe el acceso a #selfies a partir de Nivel 10.
-#   6. #memes se deja con acceso libre para "Habitante" (sin restricción
-#      de nivel), revirtiendo cualquier restricción previa si la hubiera.
-#   7. BLOQUEO GLOBAL DE MENCIONES: Pone mentionable=False a TODOS los
-#      roles del servidor y revoca el permiso de mencionar a todos los
-#      roles comunes. Solo los Administradores (y la dueña) podrán
-#      mencionar roles.
-#
-# CÓMO SE USA:
-#   - Se puede ejecutar varias veces sin problema (es idempotente).
+#   Expone un único comando slash /embeds, ejecutable SOLO por el dueño.
+#   Al activarse, genera e inyecta todos los embeds de reglas, votaciones
+#   y los bloques separados de autoroles en sus respectivos canales.
 # =========================================================================
 
 import discord
@@ -32,183 +12,137 @@ from discord import app_commands
 import os
 import sys
 
-ID_SERVIDOR = 1517885569231749240  # Cambia esto si corresponde a otro server
-ID_DUEÑO = 1360882776706125874     # Único usuario autorizado para ejecutar /ajustar
+ID_SERVIDOR = 1517885569231749240  # Tu ID de servidor
+ID_DUEÑO = 1360882776706125874     # Tu ID de usuario
+
+# --- CONFIGURACIÓN DE CANALES ---
+ID_CANAL_REGLAS = 1518762621937909862
+ID_CANAL_REGLAS_MESA = 1518762659875393577
+ID_CANAL_VOTAR_CODIGOS = 1518762651134591108
+ID_CANAL_VOTAR_DIBUJOS = 1518762681367138436
+ID_CANAL_AUTOROLES = 1518804287835345198  # Central de autoroles
 
 intents = discord.Intents.default()
-intents.members = True
-intents.guilds = True
-
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 MY_GUILD = discord.Object(id=ID_SERVIDOR)
 
-
 # =========================================================================
-# 📋 CLASIFICACIÓN DE CANALES POR NIVEL DE RESTRICCIÓN
-# =========================================================================
-
-# Canales TOTALMENTE BLINDADOS: sin hilos, sin @here/@everyone, sin
-# reacciones de usuarios (solo el bot puede reaccionar).
-CANALES_BLINDADOS = [
-    "👋-bienvenidas",
-    "📖-reglas",
-    "🗺️-guía-del-servidor",
-    "🙋-presentación",
-    "📜-reglas-de-mesa",
-    "🧙-presentación-de-personajes",
-]
-
-# Canales de VOTACIÓN: sin hilos, sin @here/@everyone, PERO SÍ reacciones.
-CANALES_VOTACION = [
-    "🗳️-votar-códigos",
-    "🗳️-votar-dibujos",
-]
-
-# Canal con acceso libre (sin restricción de nivel).
-CANAL_LIBRE_NIVEL = "😂-memes"
-
-# Canal que requiere Nivel 10 o superior para ver/escribir.
-CANAL_NIVEL_10 = "📸-selfies"
-NIVEL_MINIMO_REQUERIDO = 10
-
-# Todos los niveles definidos en el setup
-TODOS_LOS_NIVELES = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-
-
-# =========================================================================
-# 🔧 LÓGICA PRINCIPAL
+# 🎨 CONSTRUCTOR DE EMBEDS
 # =========================================================================
 
-def buscar_canal(guild: discord.Guild, nombre: str):
-    """Busca un canal de texto por nombre exacto. Devuelve None si no existe."""
-    return discord.utils.get(guild.text_channels, name=nombre)
+def generar_embeds():
+    embeds_dict = {}
 
-def buscar_rol(guild: discord.Guild, nombre: str):
-    """Busca un rol por nombre exacto. Devuelve None si no existe."""
-    return discord.utils.get(guild.roles, name=nombre)
+    # 1. Embed de Reglas Generales
+    reglas = discord.Embed(
+        title="Edictos del Imperio",
+        description=(
+            "Bienvenido al Imperio. Para mantener el orden entre las estrellas y las eras, "
+            "todos los Habitantes deben acatar las siguientes directrices. El desconocimiento de las leyes "
+            "no exime de su cumplimiento.\n\n"
+            "**1. Respeto Absoluto (Código del Consejo)**\n"
+            "Queda estrictamente prohibido el acoso, la discriminación, los discursos de odio o la toxicidad, este es un espacio pro LGBTQIA+, la comedia es legal pero debes aprender a leer la habitacion. "
+            "Trata a los demás con la dignidad de un Espectro.\n\n"
+            "**2. Contenido Temático y Canales**\n"
+            "Mantén las conversaciones en sus secciones correspondientes. No inundes los canales técnicos o de rol "
+            "con temas ajenos a ellos.\n\n"
+            "**3. Menciones y Pings**\n"
+            "No abuses de los pings al staff o a otros usuarios. Las menciones masivas están severamente restringidas.\n\n"
+            "**4. Cuentas y Seguridad**\n"
+            "Se prohíbe el spam, los enlaces maliciosos, el contenido ilegal o la distribución de software malicioso. "
+            "Cualquier intento de sabotaje resultará en un ban irreversible."
+        ),
+        color=0x9B1C1C # Rojo Inquisidor
+    )
+    reglas.set_footer(text="Protección Civil — El Imperio vela por ti.")
+    embeds_dict["reglas"] = reglas
 
+    # 2. Embed de Reglas de Mesa
+    mesa = discord.Embed(
+        title="Código de la Taberna",
+        description=(
+            "Para que las crónicas y campañas fluyan en armonía, tanto los Dungeon Masters como los jugadores "
+            "deben respetar el código de juego limpio en nuestras mesas:\n\n"
+            "**1. Compromiso y Puntualidad**\n"
+            "Si te apuntas a una partida, asiste. Avisa con un mínimo de 24 horas de anticipación si no puedes ir. "
+            "El tiempo del DM y de tus compañeros vale oro.\n\n"
+            "**2. Respeto a las Decisiones del DM**\n"
+            "La palabra del Dungeon Master es la ley final en la mesa. Las disputas sobre reglas se discuten *después* "
+            "de la sesión, de forma madura y privada.\n\n"
+            "**3. Metajuego y Powergaming**\n"
+            "Separa lo que sabes tú como jugador de lo que sabe tu personaje. Juega para contar una historia colectiva, "
+            "no para 'ganar' el rol.\n\n"
+            "**4. Límites y Seguridad (Líneas y Velos)**\n"
+            "Respeta los temas sensibles marcados por la mesa. El rol debe ser un espacio seguro y divertido para todos."
+        ),
+        color=0x6B4C9A # Morado de El Círculo
+    )
+    mesa.set_footer(text="Rol & Roll — Que los dados decidan tu destino.")
+    embeds_dict["mesa"] = mesa
 
-async def aplicar_blindaje_total(canal: discord.TextChannel, guild: discord.Guild, reporte: list):
-    """Sin hilos, sin @here/@everyone, sin reacciones de usuarios."""
-    everyone = guild.default_role
-    overwrite = canal.overwrites_for(everyone)
-    overwrite.send_messages_in_threads = False
-    overwrite.create_public_threads = False
-    overwrite.create_private_threads = False
-    overwrite.mention_everyone = False
-    overwrite.add_reactions = False
-    try:
-        await canal.set_permissions(everyone, overwrite=overwrite, reason="/ajustar: blindaje total")
-        reporte.append(f"   🔒 Blindado por completo: {canal.name}")
-    except discord.HTTPException as e:
-        reporte.append(f"   ⚠️ Error blindando {canal.name}: {e}")
+    # 3. Embed Votar Códigos
+    votar_codigos = discord.Embed(
+        title="Control de Versiones",
+        description=(
+            "¡Es hora de elegir el script más eficiente, elegante o ingenioso de la comunidad!\n\n"
+            "**¿Cómo votar?**\n"
+            "1. Sube tu propuesta o revisa las que están publicadas en el canal correspondiente.\n"
+            "2. Utiliza las reacciones habilitadas abajo en cada mensaje para emitir tu voto.\n\n"
+            "🏆 *El código ganador recibirá reconocimiento en los logs y estatus especial.*"
+        ),
+        color=0x3D5A80 # Azul Zafiro / Tecnológico
+    )
+    votar_codigos.set_footer(text="Compilando el orden del servidor.")
+    embeds_dict["votar_codigos"] = votar_codigos
 
+    # 4. Embed Votar Dibujos
+    votar_dibujos = discord.Embed(
+        title="Galería de Arte",
+        description=(
+            "El talento del Imperio expuesto ante los ojos de la comunidad. Apoya a nuestros artistas locales:\n\n"
+            "**¿Cómo votar?**\n"
+            "1. Observa las obras publicadas en esta sección.\n"
+            "2. Reacciona con los emojis correspondientes en la publicación que más te inspire.\n\n"
+            "✨ *Fomenta la crítica constructiva y apoya el arte sin menospreciar el trabajo de nadie.*"
+        ),
+        color=0xFFD60A # Dorado
+    )
+    votar_dibujos.set_footer(text="La cultura es el pilar de nuestra era.")
+    embeds_dict["votar_dibujos"] = votar_dibujos
 
-async def aplicar_blindaje_votacion(canal: discord.TextChannel, guild: discord.Guild, reporte: list):
-    """Sin hilos, sin @here/@everyone, PERO sí reacciones (para votar)."""
-    everyone = guild.default_role
-    overwrite = canal.overwrites_for(everyone)
-    overwrite.send_messages_in_threads = False
-    overwrite.create_public_threads = False
-    overwrite.create_private_threads = False
-    overwrite.mention_everyone = False
-    overwrite.add_reactions = True  # explícitamente permitido, para votar
-    try:
-        await canal.set_permissions(everyone, overwrite=overwrite, reason="/ajustar: blindaje de votación")
-        reporte.append(f"   🗳️ Blindado (con reacciones habilitadas): {canal.name}")
-    except discord.HTTPException as e:
-        reporte.append(f"   ⚠️ Error blindando {canal.name}: {e}")
+    # --- 5. BLOQUES SEPARADOS DE AUTOROLES ---
+    autoroles = []
 
+    gen = discord.Embed(title="🧬 Identidad de Género", description="Selecciona tu identidad para la base de datos del servidor:\n\n• Hombre\n• Mujer\n• Transgénero\n• No binarie\n• Otro género", color=0x95A5A6)
+    autoroles.append(gen)
 
-async def bloquear_hilos_generales(canal: discord.TextChannel, guild: discord.Guild, reporte: list):
-    """Bloquea la creación de hilos y menciones, sin tocar reacciones."""
-    everyone = guild.default_role
-    overwrite = canal.overwrites_for(everyone)
-    overwrite.send_messages_in_threads = False
-    overwrite.create_public_threads = False
-    overwrite.create_private_threads = False
-    overwrite.mention_everyone = False # Extra de seguridad para evitar pings
-    try:
-        await canal.set_permissions(everyone, overwrite=overwrite, reason="/ajustar: bloqueo de hilos y menciones")
-        reporte.append(f"   🧵 Hilos y menciones bloqueados: {canal.name}")
-    except discord.HTTPException as e:
-        reporte.append(f"   ⚠️ Error bloqueando hilos en {canal.name}: {e}")
+    prn = discord.Embed(title="💬 Pronombres", description="Elige cómo prefieres que se refieran a ti en las interacciones:\n\n• She/Her\n• He/Him\n• They/Them\n• Otros pronombres", color=0x95A5A6)
+    autoroles.append(prn)
 
+    reg = discord.Embed(title="🌍 Ubicación Geográfica", description="Dinos desde qué rincón del mundo te conectas al Imperio:\n\n• Norteamérica\n• Sudamérica\n• Europa\n• Asia", color=0x95A5A6)
+    autoroles.append(reg)
 
-async def ajustar_acceso_por_nivel(guild: discord.Guild, reporte: list):
-    """#selfies requiere Nivel 10+, #memes queda libre para Habitante."""
-    everyone = guild.default_role
-    rol_habitante = buscar_rol(guild, "Habitante")
+    sex = discord.Embed(title="🌈 Orientación", description="Define tus roles de orientación si deseas compartirlos con el sector de comunidad:\n\n• Heterosexual\n• Lesbiana\n• Bisexual\n• Gay\n• Asexual\n• Alosexual\n• Arromántico\n• Otra sexualidad", color=0x95A5A6)
+    autoroles.append(sex)
 
-    # --- #selfies: requiere Nivel 10 o superior ---
-    canal_selfies = buscar_canal(guild, CANAL_NIVEL_10)
-    if canal_selfies:
-        await canal_selfies.set_permissions(
-            everyone, view_channel=False, reason="/ajustar: restricción de nivel"
-        )
-        if rol_habitante:
-            await canal_selfies.set_permissions(
-                rol_habitante, view_channel=False, reason="/ajustar: restricción de nivel"
-            )
-        habilitados = []
-        for nivel in TODOS_LOS_NIVELES:
-            if nivel >= NIVEL_MINIMO_REQUERIDO:
-                rol_nivel = buscar_rol(guild, f"Nivel {nivel}")
-                if rol_nivel:
-                    await canal_selfies.set_permissions(
-                        rol_nivel, view_channel=True, send_messages=True,
-                        reason="/ajustar: restricción de nivel"
-                    )
-                    habilitados.append(str(nivel))
-        reporte.append(f"   📸 #selfies restringido a Nivel {NIVEL_MINIMO_REQUERIDO}+ (roles habilitados: {', '.join(habilitados) if habilitados else 'ninguno encontrado'})")
-    else:
-        reporte.append(f"   ⚠️ No se encontró el canal {CANAL_NIVEL_10}")
+    edad = discord.Embed(title="🎂 Grupo de Edad", description="Selecciona tu rango de edad para organizar actividades acordes:\n\n• 14-17\n• 18-25\n• 26+", color=0x95A5A6)
+    autoroles.append(edad)
 
-    # --- #memes: acceso libre para Habitante ---
-    canal_memes = buscar_canal(guild, CANAL_LIBRE_NIVEL)
-    if canal_memes:
-        await canal_memes.set_permissions(everyone, view_channel=False, reason="/ajustar: acceso libre")
-        if rol_habitante:
-            await canal_memes.set_permissions(
-                rol_habitante, view_channel=True, send_messages=True,
-                reason="/ajustar: acceso libre"
-            )
-        reporte.append(f"   😂 #memes confirmado con acceso libre")
-    else:
-        reporte.append(f"   ⚠️ No se encontró el canal {CANAL_LIBRE_NIVEL}")
+    nichos = discord.Embed(title="⚔️ Sectores de Interés", description="Desbloquea el acceso a las facciones exclusivas del servidor:\n\n• **Linux & Coding**: Entornos Unix, desarrollo y scripts.\n• **Arte y Filosofía**: Espacio cultural, música y debates.\n• **Rol n Roll**: Mesas de rol, manuales y dados.", color=0x95A5A6)
+    autoroles.append(nichos)
 
+    ocu = discord.Embed(title="🛠️ Oficios y Especializaciones", description="¿A qué te dedicas dentro o fuera del Imperio?:\n\n• Artista\n• Programador\n• Dungeon Master\n• Seudo Filósofo\n• Politólogo", color=0x95A5A6)
+    autoroles.append(ocu)
 
-async def bloquear_menciones_global(guild: discord.Guild, reporte: list):
-    """Pone mentionable=False a TODOS los roles y quita el permiso mention_everyone."""
-    roles_no_mencionables = 0
-    roles_permiso_revocado = 0
+    colores = discord.Embed(title="🎨 Paleta de Colores", description="Elige el pigmento con el que se mostrará tu nombre en la lista de ciudadanos:\n\n• Carmesí\n• Ámbar\n• Dorado\n• Esmeralda\n• Zafiro\n• Amatista\n• Rosa\n• Marfil\n• Obsidiana\n• Celeste", color=0xF1FAEE)
+    autoroles.append(colores)
 
-    for rol in guild.roles:
-        # 1. Quitar 'mentionable' para que nadie pueda hacer ping al rol directamente
-        if rol.mentionable:
-            try:
-                await rol.edit(mentionable=False, reason="/ajustar: bloqueo global de ping a roles")
-                roles_no_mencionables += 1
-            except discord.HTTPException:
-                pass # Se ignora si no se puede editar (roles de Discord o de mayor jerarquía)
-
-        # 2. Quitar el permiso de 'Mencionar @everyone, @here y roles' a roles comunes
-        if rol.permissions.mention_everyone and not rol.permissions.administrator:
-            try:
-                perms = rol.permissions
-                perms.update(mention_everyone=False)
-                await rol.edit(permissions=perms, reason="/ajustar: revocar permiso de mención masiva")
-                roles_permiso_revocado += 1
-            except discord.HTTPException:
-                pass 
-
-    reporte.append(f"   🔇 Propiedad mentionable apagada en {roles_no_mencionables} roles.")
-    reporte.append(f"   🚫 Permiso de menciones masivas revocado en {roles_permiso_revocado} roles comunes.")
-
+    embeds_dict["autoroles"] = autoroles
+    return embeds_dict
 
 # =========================================================================
-# 🏁 COMANDO PRINCIPAL
+# ⚙️ EVENTOS Y COMANDO SLASHS
 # =========================================================================
 
 @client.event
@@ -216,89 +150,48 @@ async def on_ready():
     print(f"🔌 Conectado como {client.user}")
     tree.copy_global_to(guild=MY_GUILD)
     await tree.sync(guild=MY_GUILD)
-    print("🔧 Comando /ajustar sincronizado. Esperando ejecución manual desde Discord...")
+    print("🏛️ Comando /embeds listo para ejecución manual.")
 
-
-@tree.command(name="ajustar", description="[SOLO DUEÑO] Refuerza permisos globales, blinda canales y prohíbe menciones de roles.")
-async def ajustar(interaction: discord.Interaction):
+@tree.command(name="embeds", description="[SOLO DUEÑO] Envía de forma masiva los embeds de diseño y autoroles.")
+async def enviar_embeds(interaction: discord.Interaction):
+    # Restricción dura de seguridad
     if interaction.user.id != ID_DUEÑO:
-        await interaction.response.send_message(
-            "❌ No tienes autorización para ejecutar este comando.", ephemeral=True
-        )
+        await interaction.response.send_message("❌ No tienes autorización para usar esto.", ephemeral=True)
         return
 
-    guild = interaction.guild
-    if guild is None or guild.id != ID_SERVIDOR:
-        await interaction.response.send_message(
-            "❌ Este comando solo puede ejecutarse en el servidor configurado.", ephemeral=True
-        )
-        return
+    await interaction.response.send_message("⏳ Procesando e inyectando interfaces visuales...", ephemeral=True)
+    
+    data = generar_embeds()
+    
+    # 1. Reglas
+    ch_reglas = client.get_channel(ID_CANAL_REGLAS)
+    if ch_reglas: await ch_reglas.send(embed=data["reglas"])
 
-    await interaction.response.send_message(
-        "🔧 **Ajustando permisos...** Esto puede tomar un momento. Revisa la consola/logs "
-        "de Railway para ver el detalle completo.",
-        ephemeral=True
-    )
+    # 2. Reglas de Mesa
+    ch_mesa = client.get_channel(ID_CANAL_REGLAS_MESA)
+    if ch_mesa: await ch_mesa.send(embed=data["mesa"])
 
-    reporte = []
-    print(f"\n🔧 /ajustar ejecutado por {interaction.user} (ID: {interaction.user.id})\n")
+    # 3. Votar Códigos
+    ch_vc = client.get_channel(ID_CANAL_VOTAR_CODIGOS)
+    if ch_vc: await ch_vc.send(embed=data["votar_codigos"])
 
-    # --- 1. Canales totalmente blindados ---
-    print("🔒 Aplicando blindaje total...")
-    for nombre in CANALES_BLINDADOS:
-        canal = buscar_canal(guild, nombre)
-        if canal:
-            await aplicar_blindaje_total(canal, guild, reporte)
-        else:
-            reporte.append(f"   ⚠️ No se encontró el canal: {nombre}")
+    # 4. Votar Dibujos
+    ch_vd = client.get_channel(ID_CANAL_VOTAR_DIBUJOS)
+    if ch_vd: await ch_vd.send(embed=data["votar_dibujos"])
 
-    # --- 2. Canales de votación ---
-    print("🗳️ Aplicando blindaje de votación...")
-    for nombre in CANALES_VOTACION:
-        canal = buscar_canal(guild, nombre)
-        if canal:
-            await aplicar_blindaje_votacion(canal, guild, reporte)
-        else:
-            reporte.append(f"   ⚠️ No se encontró el canal: {nombre}")
+    # 5. Autoroles divididos
+    ch_auto = client.get_channel(ID_CANAL_AUTOROLES)
+    if ch_auto:
+        await ch_auto.send("🏛️ **CENTRAL DE ASIGNACIÓN DE IDENTIDAD Y ROLES**\n*Por favor, examina los siguientes módulos informativos de personalización.*")
+        for embed_bloque in data["autoroles"]:
+            await ch_auto.send(embed=embed_bloque)
 
-    # --- 3. Bloquear hilos y menciones en el resto de canales ---
-    print("🧵 Bloqueando hilos y menciones en el resto de canales...")
-    nombres_ya_procesados = set(CANALES_BLINDADOS + CANALES_VOTACION)
-    for canal in guild.text_channels:
-        if canal.name in nombres_ya_procesados:
-            continue  
-        await bloquear_hilos_generales(canal, guild, reporte)
-
-    # --- 4. Acceso por nivel ---
-    print("📊 Ajustando acceso por nivel...")
-    await ajustar_acceso_por_nivel(guild, reporte)
-
-    # --- 5. Bloqueo global de menciones ---
-    print("🔇 Cortando permisos globales de mención de roles...")
-    await bloquear_menciones_global(guild, reporte)
-
-    # --- Reporte final en consola ---
-    print("\n" + "=" * 60)
-    print("🎉 /ajustar COMPLETADO — RESUMEN")
-    print("=" * 60)
-    for linea in reporte:
-        print(linea)
-    print("=" * 60 + "\n")
-
-    try:
-        await interaction.followup.send(
-            "✅ **Ajustes completados.** Los permisos de mencionar roles han sido cortados "
-            "y los canales blindados. Revisa los logs de Railway para detalles.",
-            ephemeral=True
-        )
-    except discord.HTTPException:
-        pass
-
+    await interaction.followup.send("✅ ¡Todos los embeds estéticos han sido publicados en sus canales!", ephemeral=True)
 
 def main():
     token = os.environ.get("DISCORD_TOKEN")
     if not token:
-        print("❌ ERROR CRÍTICO: No se encontró DISCORD_TOKEN.")
+        print("❌ ERROR: Falta DISCORD_TOKEN.")
         sys.exit(1)
     client.run(token)
 
