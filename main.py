@@ -69,4 +69,17 @@ async def enviar_embeds(interaction: discord.Interaction):
     
     ch_starboard = client.get_channel(ID_CANAL_STARBOARD)
     if ch_starboard:
-        await ch_starboard.send(embed=embed_starboard
+        await ch_starboard.send(embed=embed_starboard) # <- Paréntesis corregido aquí
+        await interaction.followup.send("✅ ¡El embed de Starboard ha sido publicado con éxito!", ephemeral=True)
+    else:
+        await interaction.followup.send("❌ Error: No se pudo encontrar el canal especificado.", ephemeral=True)
+
+def main():
+    token = os.environ.get("DISCORD_TOKEN")
+    if not token:
+        print("❌ ERROR: Falta DISCORD_TOKEN.")
+        sys.exit(1)
+    client.run(token)
+
+if __name__ == "__main__":
+    main()
