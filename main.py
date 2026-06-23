@@ -1,43 +1,50 @@
 # =========================================================================
-# 🌌 SETUP FASE 1 — ESTRUCTURA DEL SERVIDOR (Mass Effect / Dragon Age)
+# 🔧 AJUSTAR — REFUERZO DE PERMISOS POST-SETUP
 # =========================================================================
 # QUÉ HACE ESTE BOT:
-#   Expone un único comando slash /setup, ejecutable SOLO por el usuario
+#   Expone un único comando slash /ajustar, ejecutable SOLO por el usuario
 #   con ID_DUEÑO, que:
-#   1. Borra TODOS los roles del servidor (excepto @everyone).
-#   2. Borra los canales que estén DENTRO de una categoría (no toca canales
-#      sueltos que no pertenezcan a ninguna categoría).
-#   3. Borra también las categorías mismas.
-#   4. Crea todos los roles nuevos (jerarquía, niveles, colores, autoroles).
-#   5. Crea todas las categorías y canales nuevos, con permisos de acceso
-#      por sección.
-#   6. Al final, imprime en consola (logs de Railway) todos los IDs en
-#      formato "<ID> ---- Nombre", listos para copiar.
+#
+#   1. Blinda los canales de "Información del Servidor" (bienvenidas,
+#      reglas, guía-del-servidor): nadie puede crear hilos, hacer
+#      @here/@everyone, ni añadir reacciones — solo el bot puede reaccionar.
+#   2. Aplica el mismo blindaje (sin hilos, sin @here/@everyone, sin
+#      reacciones de usuarios) a: presentación, reglas-de-mesa,
+#      presentación-de-personajes, y a cualquier canal de autoroles.
+#   3. En los canales de votación (votar-códigos, votar-dibujos): sin
+#      hilos, sin @here/@everyone, PERO SÍ permite reacciones (para votar).
+#   4. Bloquea la creación de hilos en TODOS los canales de texto del
+#      servidor (incluyendo los "generales" de cada sección).
+#   5. Restringe el acceso a #selfies a partir de Nivel 10 (acumulativo:
+#      Nivel 20, 30... 100 también pueden, ya que en Discord los roles de
+#      nivel superior no incluyen automáticamente el permiso del inferior,
+#      así que se otorga el view_channel a TODOS los roles de nivel >= 10).
+#   6. #memes se deja con acceso libre para "Habitante" (sin restricción
+#      de nivel), revirtiendo cualquier restricción previa si la hubiera.
+#   7. Pone mentionable=False en TODOS los roles de autorol (género,
+#      región, sexualidad, pronombres, nichos, edad, ocupación, colores),
+#      para que nadie pueda hacer @rol y que resuelva como ping real.
 #
 # CÓMO SE USA:
-#   - Despliega este bot en Railway (o donde sea) de forma normal.
-#   - Cuando esté listo (online), ejecuta /setup desde Discord.
-#   - Solo el usuario con ID_DUEÑO puede ejecutarlo; cualquier otro
-#     recibe un rechazo silencioso (ephemeral) sin que pase nada.
-#   - Requiere la variable de entorno DISCORD_TOKEN.
-#   - El bot necesita permiso de Administrador (lo pediste así a propósito).
-#   - Una vez ejecutado y confirmado que todo salió bien, puedes borrar
-#     este código y archivarlo localmente (según tu plan de fases).
+#   - Este comando busca canales y roles POR NOMBRE (no por ID fijo), así
+#     que funciona sin importar el servidor mientras los nombres coincidan
+#     con los que generó /setup. Si renombraste algo manualmente después
+#     del setup, ese canal/rol específico no se va a encontrar y se
+#     reportará en el resumen final, sin detener el resto del proceso.
+#   - Se puede ejecutar varias veces sin problema (es idempotente): solo
+#     vuelve a aplicar los mismos permisos, no duplica nada.
 #
-# ⚠️ ADVERTENCIA: /setup ES DESTRUCTIVO E IRREVERSIBLE.
-#   No hay segunda confirmación dentro de Discord — al ejecutar el comando,
-#   el borrado empieza de inmediato. Asegúrate de estar listo antes de
-#   presionar enter en el comando.
+# ⚠️ NOTA: A diferencia de /setup, este comando NO es destructivo — solo
+#   ajusta permisos y la propiedad "mentionable" de roles. No borra nada.
 # =========================================================================
 
 import discord
 from discord import app_commands
 import os
 import sys
-import json
 
 ID_SERVIDOR = 1517885569231749240  # Cambia esto si corresponde a otro server
-ID_DUEÑO = 1360882776706125874     # Único usuario autorizado para ejecutar /setup
+ID_DUEÑO = 1360882776706125874     # Único usuario autorizado para ejecutar /ajustar
 
 intents = discord.Intents.default()
 intents.members = True
@@ -47,68 +54,40 @@ client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 MY_GUILD = discord.Object(id=ID_SERVIDOR)
 
-# =========================================================================
-# 🎨 DEFINICIÓN DE TIPOGRAFÍA DOBLE-STRIKE
-# =========================================================================
-# Mapeo de caracteres normales a su versión doble-strike (𝕯𝖔𝖚𝖻𝖑𝖊-𝖘𝖙𝖗𝖎𝖐𝖊)
-# Se usa SOLO para: roles de jerarquía especial y roles de nivel.
-_DOBLE_STRIKE = {
-    'A':'𝔸','B':'𝔹','C':'ℂ','D':'𝔻','E':'𝔼','F':'𝔽','G':'𝔾','H':'ℍ','I':'𝕀',
-    'J':'𝕁','K':'𝕂','L':'𝕃','M':'𝕄','N':'ℕ','O':'𝕆','P':'ℙ','Q':'ℚ','R':'ℝ',
-    'S':'𝕊','T':'𝕋','U':'𝕌','V':'𝕍','W':'𝕎','X':'𝕏','Y':'𝕐','Z':'ℤ',
-    'a':'𝕒','b':'𝕓','c':'𝕔','d':'𝕕','e':'𝕖','f':'𝕗','g':'𝕘','h':'𝕙','i':'𝕚',
-    'j':'𝕛','k':'𝕜','l':'𝕝','m':'𝕞','n':'𝕟','o':'𝕠','p':'𝕡','q':'𝕢','r':'𝕣',
-    's':'𝕤','t':'𝕥','u':'𝕦','v':'𝕧','w':'𝕨','x':'𝕩','y':'𝕪','z':'𝕫',
-    '0':'𝟘','1':'𝟙','2':'𝟚','3':'𝟛','4':'𝟜','5':'𝟝','6':'𝟞','7':'𝟟','8':'𝟠','9':'𝟡',
-}
-
-def doble_strike(texto: str) -> str:
-    """Convierte texto normal a tipografía doble-strike, dejando intactos
-    espacios, emojis y símbolos que no estén en el mapeo."""
-    return "".join(_DOBLE_STRIKE.get(c, c) for c in texto)
-
 
 # =========================================================================
-# 🎭 DEFINICIÓN DE ROLES
+# 📋 CLASIFICACIÓN DE CANALES POR NIVEL DE RESTRICCIÓN
 # =========================================================================
-# Cada rol: (nombre_final, color_hex, hoist, mentionable)
-# El orden en esta lista es el orden de creación. discord.py crea los
-# roles de abajo hacia arriba en la jerarquía visual, así que el PRIMERO
-# de esta lista queda en la posición MÁS ALTA una vez reordenado al final.
 
-ROLES_JERARQUIA = [
-    # (nombre_base, emoji, hex_color)
-    ("Andraste",       "💫", 0xF4C430),
-    ("Inquisidor",     "🛡️", 0x9B1C1C),
-    ("Comandante",     "🤖", 0x1B3A5C),
-    ("Espectros",      "👁️", 0xC0C0C0),
-    ("Guardas Grises", "⚔️", 0x3A4A5C),
-    ("El Círculo",     "🔮", 0x6B4C9A),
+# Canales TOTALMENTE BLINDADOS: sin hilos, sin @here/@everyone, sin
+# reacciones de usuarios (solo el bot puede reaccionar).
+CANALES_BLINDADOS = [
+    "👋 bienvenidas",
+    "📖 reglas",
+    "🗺️ guía-del-servidor",
+    "🙋 presentación",
+    "📜 reglas-de-mesa",
+    "🧙 presentación-de-personajes",
 ]
 
-# Niveles: de 10 en 10 hasta 100
-ROLES_NIVEL_DEF = [
-    (10,  "🔹"), (20, "🔸"), (30, "🟦"), (40, "🟧"), (50, "🟪"),
-    (60,  "🟩"), (70, "💠"), (80, "⭐"), (90, "🌟"), (100, "🏆"),
+# Canales de VOTACIÓN: sin hilos, sin @here/@everyone, PERO SÍ reacciones.
+CANALES_VOTACION = [
+    "🗳️ votar-códigos",
+    "🗳️ votar-dibujos",
 ]
 
-ROL_HABITANTE = "Habitante"  # rol base, sin emoji, tipografía normal
+# Canal con acceso libre (sin restricción de nivel), por si se quiere
+# revertir una restricción previa.
+CANAL_LIBRE_NIVEL = "😂 memes"
 
-# Colores autorol (sin emoji, tipografía normal)
-ROLES_COLOR = [
-    ("Carmesí",   0xE63946),
-    ("Ámbar",     0xF4A261),
-    ("Dorado",    0xFFD60A),
-    ("Esmeralda", 0x2A9D8F),
-    ("Zafiro",    0x3D5A80),
-    ("Amatista",  0x7B2CBF),
-    ("Rosa",      0xFF6FB5),
-    ("Marfil",    0xF1FAEE),
-    ("Obsidiana", 0x22223B),
-    ("Celeste",   0x90E0EF),
-]
+# Canal que requiere Nivel 10 o superior para ver/escribir.
+CANAL_NIVEL_10 = "📸 selfies"
+NIVEL_MINIMO_REQUERIDO = 10
 
-# Autoroles normales (sin emoji, tipografía normal, color gris neutro por defecto)
+# Todos los niveles definidos en el setup (debe coincidir con setup_fase1.py)
+TODOS_LOS_NIVELES = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+
+# Roles de autorol que deben quedar con mentionable=False
 ROLES_GENERO = ["Hombre", "Mujer", "Transgénero", "No binarie", "Otro género"]
 ROLES_REGION = ["Norteamérica", "Sudamérica", "Europa", "Asia"]
 ROLES_SEXUALIDAD = ["Heterosexual", "Lesbiana", "Bisexual", "Gay", "Asexual", "Alosexual", "Arromántico", "Otra sexualidad"]
@@ -116,293 +95,142 @@ ROLES_PRONOMBRES = ["She/Her", "He/Him", "They/Them", "Otros pronombres"]
 ROLES_NICHO = ["Linux & Coding", "Arte y Filosofía", "Rol n Roll"]
 ROLES_EDAD = ["14-17", "18-25", "26+"]
 ROLES_OCUPACION = ["Artista", "Programador", "Dungeon Master", "Seudo Filósofo", "Politólogo"]
+ROLES_COLOR = ["Carmesí", "Ámbar", "Dorado", "Esmeralda", "Zafiro", "Amatista", "Rosa", "Marfil", "Obsidiana", "Celeste"]
+
+ROLES_AUTOROL_TODOS = (
+    ROLES_GENERO + ROLES_REGION + ROLES_SEXUALIDAD + ROLES_PRONOMBRES +
+    ROLES_NICHO + ROLES_EDAD + ROLES_OCUPACION + ROLES_COLOR
+)
 
 
 # =========================================================================
-# 🧹 PASO 1: LIMPIEZA
+# 🔧 LÓGICA PRINCIPAL
 # =========================================================================
 
-async def limpiar_servidor(guild: discord.Guild):
-    print("\n🧹 Iniciando limpieza del servidor...")
-
-    # --- Borrar canales dentro de categorías (y las categorías mismas) ---
-    # Los canales que NO pertenecen a ninguna categoría (category is None)
-    # se dejan intactos, tal como se pidió.
-    categorias = list(guild.categories)
-    for categoria in categorias:
-        for canal in list(categoria.channels):
-            try:
-                await canal.delete(reason="Setup Fase 1: limpieza")
-                print(f"   🗑️ Canal borrado: {canal.name}")
-            except discord.HTTPException as e:
-                print(f"   ⚠️ No se pudo borrar el canal {canal.name}: {e}")
-        try:
-            await categoria.delete(reason="Setup Fase 1: limpieza")
-            print(f"   🗑️ Categoría borrada: {categoria.name}")
-        except discord.HTTPException as e:
-            print(f"   ⚠️ No se pudo borrar la categoría {categoria.name}: {e}")
-
-    # --- Borrar TODOS los roles (excepto @everyone) ---
-    # Incluye roles "managed" creados por este mismo bot en corridas anteriores
-    # de setup. NOTA: el rol managed del bot DE DISCORD en sí (el que Discord
-    # genera automáticamente para que el bot tenga member object) normalmente
-    # no se puede borrar vía API aunque lo intentemos — Discord lo rechaza
-    # solo, así que el try/except lo absorbe sin romper el script.
-    for rol in list(guild.roles):
-        if rol.is_default():
-            continue  # @everyone nunca se borra (Discord no lo permite)
-        try:
-            await rol.delete(reason="Setup Fase 1: limpieza")
-            print(f"   🗑️ Rol borrado: {rol.name}")
-        except discord.HTTPException as e:
-            print(f"   ⚠️ No se pudo borrar el rol {rol.name}: {e}")
-
-    print("✅ Limpieza completada.\n")
+def buscar_canal(guild: discord.Guild, nombre: str):
+    """Busca un canal de texto por nombre exacto. Devuelve None si no existe."""
+    return discord.utils.get(guild.text_channels, name=nombre)
 
 
-# =========================================================================
-# 🎭 PASO 2: CREACIÓN DE ROLES
-# =========================================================================
-
-async def crear_roles(guild: discord.Guild):
-    print("🎭 Creando roles...")
-    ids_roles = {}  # nombre_legible -> objeto discord.Role
-
-    # --- Jerarquía especial: emoji + tipografía doble-strike + color único ---
-    for nombre_base, emoji, color in ROLES_JERARQUIA:
-        nombre_final = f"{emoji} {doble_strike(nombre_base)}"
-        rol = await guild.create_role(
-            name=nombre_final,
-            color=discord.Color(color),
-            hoist=True,
-            mentionable=True,
-            reason="Setup Fase 1: jerarquía"
-        )
-        ids_roles[nombre_base] = rol
-        print(f"   ✅ {nombre_final}")
-
-    # --- Niveles: emoji + tipografía doble-strike, color verde estándar ---
-    for nivel, emoji in ROLES_NIVEL_DEF:
-        nombre_base = f"Nivel {nivel}"
-        nombre_final = f"{emoji} {doble_strike(nombre_base)}"
-        rol = await guild.create_role(
-            name=nombre_final,
-            color=discord.Color(0x57A773),
-            hoist=False,
-            mentionable=False,
-            reason="Setup Fase 1: niveles"
-        )
-        ids_roles[f"Nivel {nivel}"] = rol
-        print(f"   ✅ {nombre_final}")
-
-    # --- Rol base Habitante: sin emoji, tipografía normal ---
-    rol_habitante = await guild.create_role(
-        name=ROL_HABITANTE,
-        color=discord.Color(0x95A5A6),
-        hoist=False,
-        mentionable=False,
-        reason="Setup Fase 1: rol base"
-    )
-    ids_roles[ROL_HABITANTE] = rol_habitante
-    print(f"   ✅ {ROL_HABITANTE}")
-
-    # --- Colores autorol: sin emoji, tipografía normal ---
-    for nombre, color in ROLES_COLOR:
-        rol = await guild.create_role(
-            name=nombre,
-            color=discord.Color(color),
-            hoist=False,
-            mentionable=False,
-            reason="Setup Fase 1: colores"
-        )
-        ids_roles[nombre] = rol
-        print(f"   ✅ {nombre}")
-
-    # --- Autoroles normales: sin emoji, tipografía normal, sin color especial ---
-    grupos_autorol = (
-        ROLES_GENERO + ROLES_REGION + ROLES_SEXUALIDAD +
-        ROLES_PRONOMBRES + ROLES_NICHO + ROLES_EDAD + ROLES_OCUPACION
-    )
-    for nombre in grupos_autorol:
-        rol = await guild.create_role(
-            name=nombre,
-            color=discord.Color.default(),
-            hoist=False,
-            mentionable=False,
-            reason="Setup Fase 1: autoroles"
-        )
-        ids_roles[nombre] = rol
-        print(f"   ✅ {nombre}")
-
-    print("✅ Todos los roles fueron creados.\n")
-    return ids_roles
+def buscar_rol(guild: discord.Guild, nombre: str):
+    """Busca un rol por nombre exacto. Devuelve None si no existe."""
+    return discord.utils.get(guild.roles, name=nombre)
 
 
-# =========================================================================
-# 📂 PASO 3: CREACIÓN DE CANALES
-# =========================================================================
-
-async def crear_canales(guild: discord.Guild, roles: dict):
-    print("📂 Creando categorías y canales...")
-    ids_canales = {}
-
+async def aplicar_blindaje_total(canal: discord.TextChannel, guild: discord.Guild, reporte: list):
+    """Sin hilos, sin @here/@everyone, sin reacciones de usuarios."""
     everyone = guild.default_role
-    rol_habitante = roles[ROL_HABITANTE]
-    rol_linux = roles["Linux & Coding"]
-    rol_rol = roles["Rol n Roll"]
-    rol_arte = roles["Arte y Filosofía"]
-    rol_espectros = roles["Espectros"]
-    rol_andraste = roles["Andraste"]
-    rol_inquisidor = roles["Inquisidor"]
-    rol_guardas = roles["Guardas Grises"]
-    rol_circulo = roles["El Círculo"]
+    overwrite = canal.overwrites_for(everyone)
+    overwrite.send_messages_in_threads = False
+    overwrite.create_public_threads = False
+    overwrite.create_private_threads = False
+    overwrite.mention_everyone = False
+    overwrite.add_reactions = False
+    try:
+        await canal.set_permissions(everyone, overwrite=overwrite, reason="/ajustar: blindaje total")
+        reporte.append(f"   🔒 Blindado por completo: {canal.name}")
+    except discord.HTTPException as e:
+        reporte.append(f"   ⚠️ Error blindando {canal.name}: {e}")
 
-    staff_roles = [rol_andraste, rol_inquisidor, rol_guardas, rol_circulo]
 
-    async def nueva_categoria(nombre, overwrites=None):
-        cat = await guild.create_category(nombre, overwrites=overwrites or {}, reason="Setup Fase 1")
-        ids_canales[nombre] = cat.id
-        print(f"   📁 Categoría: {nombre}")
-        return cat
+async def aplicar_blindaje_votacion(canal: discord.TextChannel, guild: discord.Guild, reporte: list):
+    """Sin hilos, sin @here/@everyone, PERO sí reacciones (para votar)."""
+    everyone = guild.default_role
+    overwrite = canal.overwrites_for(everyone)
+    overwrite.send_messages_in_threads = False
+    overwrite.create_public_threads = False
+    overwrite.create_private_threads = False
+    overwrite.mention_everyone = False
+    overwrite.add_reactions = True  # explícitamente permitido, para votar
+    try:
+        await canal.set_permissions(everyone, overwrite=overwrite, reason="/ajustar: blindaje de votación")
+        reporte.append(f"   🗳️ Blindado (con reacciones habilitadas): {canal.name}")
+    except discord.HTTPException as e:
+        reporte.append(f"   ⚠️ Error blindando {canal.name}: {e}")
 
-    async def nuevo_texto(categoria, nombre, topic=None, overwrites=None):
-        canal = await categoria.create_text_channel(
-            nombre, topic=topic, overwrites=overwrites or {}, reason="Setup Fase 1"
+
+async def bloquear_hilos_generales(canal: discord.TextChannel, guild: discord.Guild, reporte: list):
+    """Bloquea solo la creación de hilos, sin tocar reacciones ni menciones."""
+    everyone = guild.default_role
+    overwrite = canal.overwrites_for(everyone)
+    overwrite.send_messages_in_threads = False
+    overwrite.create_public_threads = False
+    overwrite.create_private_threads = False
+    try:
+        await canal.set_permissions(everyone, overwrite=overwrite, reason="/ajustar: bloqueo de hilos")
+        reporte.append(f"   🧵 Hilos bloqueados: {canal.name}")
+    except discord.HTTPException as e:
+        reporte.append(f"   ⚠️ Error bloqueando hilos en {canal.name}: {e}")
+
+
+async def ajustar_acceso_por_nivel(guild: discord.Guild, reporte: list):
+    """#selfies requiere Nivel 10+, #memes queda libre para Habitante."""
+    everyone = guild.default_role
+    rol_habitante = buscar_rol(guild, "Habitante")
+
+    # --- #selfies: requiere Nivel 10 o superior ---
+    canal_selfies = buscar_canal(guild, CANAL_NIVEL_10)
+    if canal_selfies:
+        # Bloquear para @everyone y para Habitante (que no tiene nivel garantizado)
+        await canal_selfies.set_permissions(
+            everyone, view_channel=False, reason="/ajustar: restricción de nivel"
         )
-        ids_canales[nombre] = canal.id
-        print(f"      💬 {nombre}")
-        return canal
+        if rol_habitante:
+            await canal_selfies.set_permissions(
+                rol_habitante, view_channel=False, reason="/ajustar: restricción de nivel"
+            )
+        # Habilitar para cada rol de nivel >= 10
+        habilitados = []
+        for nivel in TODOS_LOS_NIVELES:
+            if nivel >= NIVEL_MINIMO_REQUERIDO:
+                rol_nivel = buscar_rol(guild, f"Nivel {nivel}")
+                if rol_nivel:
+                    await canal_selfies.set_permissions(
+                        rol_nivel, view_channel=True, send_messages=True,
+                        reason="/ajustar: restricción de nivel"
+                    )
+                    habilitados.append(str(nivel))
+        reporte.append(f"   📸 #selfies restringido a Nivel {NIVEL_MINIMO_REQUERIDO}+ (roles habilitados: {', '.join(habilitados) if habilitados else 'ninguno encontrado'})")
+    else:
+        reporte.append(f"   ⚠️ No se encontró el canal {CANAL_NIVEL_10}")
 
-    async def nuevo_voz(categoria, nombre, user_limit=0, overwrites=None):
-        canal = await categoria.create_voice_channel(
-            nombre, user_limit=user_limit, overwrites=overwrites or {}, reason="Setup Fase 1"
-        )
-        ids_canales[nombre] = canal.id
-        print(f"      🔊 {nombre} (límite: {user_limit or 'sin límite'})")
-        return canal
+    # --- #memes: acceso libre para Habitante, sin restricción de nivel ---
+    canal_memes = buscar_canal(guild, CANAL_LIBRE_NIVEL)
+    if canal_memes:
+        await canal_memes.set_permissions(everyone, view_channel=False, reason="/ajustar: acceso libre")
+        if rol_habitante:
+            await canal_memes.set_permissions(
+                rol_habitante, view_channel=True, send_messages=True,
+                reason="/ajustar: acceso libre"
+            )
+        reporte.append(f"   😂 #memes confirmado con acceso libre (sin restricción de nivel)")
+    else:
+        reporte.append(f"   ⚠️ No se encontró el canal {CANAL_LIBRE_NIVEL}")
 
-    # Overwrite estándar: solo "Habitante" y superiores pueden ver; @everyone no.
-    base_overwrites = {
-        everyone: discord.PermissionOverwrite(view_channel=False),
-        rol_habitante: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True),
-    }
 
-    def overwrites_con_rol(rol_extra, ver_para_habitante=False):
-        """Genera overwrites donde SOLO rol_extra (+ staff) puede ver el canal."""
-        ow = {
-            everyone: discord.PermissionOverwrite(view_channel=False),
-            rol_extra: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True),
-        }
-        for sr in staff_roles:
-            ow[sr] = discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True)
-        return ow
+async def quitar_mentionable_autoroles(guild: discord.Guild, reporte: list):
+    """Pone mentionable=False en todos los roles de autorol."""
+    encontrados, no_encontrados = 0, []
+    for nombre in ROLES_AUTOROL_TODOS:
+        rol = buscar_rol(guild, nombre)
+        if rol is None:
+            no_encontrados.append(nombre)
+            continue
+        if rol.mentionable:
+            try:
+                await rol.edit(mentionable=False, reason="/ajustar: bloquear ping de autoroles")
+            except discord.HTTPException as e:
+                reporte.append(f"   ⚠️ Error al ajustar {nombre}: {e}")
+                continue
+        encontrados += 1
 
-    # ---------------------------------------------------------------
-    # 1. Información del Servidor (visible para todos, incluso sin rol)
-    # ---------------------------------------------------------------
-    info_overwrites = {
-        everyone: discord.PermissionOverwrite(view_channel=True, send_messages=False),
-    }
-    cat_info = await nueva_categoria("📜 Información del Servidor", info_overwrites)
-    await nuevo_texto(cat_info, "👋 bienvenidas", "Bienvenido al Imperio. Aquí empieza tu historia.")
-    await nuevo_texto(cat_info, "📖 reglas", "Las leyes que rigen este mundo.")
-    await nuevo_texto(cat_info, "🎫 tickets", "Contacta al staff de forma privada.",
-                       overwrites={everyone: discord.PermissionOverwrite(view_channel=True, send_messages=True)})
-    await nuevo_texto(cat_info, "🗺️ guía-del-servidor", "Todo lo que necesitas saber para empezar.")
-
-    # ---------------------------------------------------------------
-    # 2. Offtopic (rol Habitante)
-    # ---------------------------------------------------------------
-    cat_offtopic = await nueva_categoria("🌍 Offtopic", base_overwrites)
-    await nuevo_texto(cat_offtopic, "💬 chat-offtopic", "Habla de lo que sea.")
-    await nuevo_texto(cat_offtopic, "🙋 presentación", "Cuéntanos quién eres.")
-    await nuevo_texto(cat_offtopic, "🎬 media", "Comparte videos e imágenes.")
-    await nuevo_texto(cat_offtopic, "😂 memes", "El humor del Imperio.")
-    await nuevo_texto(cat_offtopic, "📸 selfies", "Muestra tu rostro al mundo.")
-
-    # ---------------------------------------------------------------
-    # 3. VC Offtopic (rol Habitante)
-    # ---------------------------------------------------------------
-    cat_vc_offtopic = await nueva_categoria("🔊 VC Offtopic", base_overwrites)
-    await nuevo_voz(cat_vc_offtopic, "🔊 VC General", user_limit=0)
-    for i in range(1, 4):
-        await nuevo_voz(cat_vc_offtopic, f"👥 VC Duo {i}", user_limit=2)
-    for i in range(1, 5):
-        await nuevo_voz(cat_vc_offtopic, f"👥 VC Trío {i}", user_limit=3)
-    for i in range(1, 3):
-        await nuevo_voz(cat_vc_offtopic, f"👥 VC Grupo {i}", user_limit=5)
-
-    # ---------------------------------------------------------------
-    # 4. Linux & Coding (rol Linux & Coding) + VC Mantenimiento dentro
-    # ---------------------------------------------------------------
-    cat_linux = await nueva_categoria("💻 Linux & Coding", overwrites_con_rol(rol_linux))
-    await nuevo_texto(cat_linux, "🐧 linux-general", "Discusión general sobre Linux.")
-    await nuevo_texto(cat_linux, "🖼️ linux-media", "Capturas, fotos, recursos visuales.")
-    await nuevo_texto(cat_linux, "⚙️ linux-setup", "Muestra tu setup, dotfiles, rice.")
-    await nuevo_texto(cat_linux, "😂 linux-coding-memes", "Humor de programador.")
-    await nuevo_texto(cat_linux, "📝 tu-código", "Comparte tu código.")
-    await nuevo_texto(cat_linux, "🗳️ votar-códigos", "Vota el mejor código de la semana.")
-    for i in range(1, 6):
-        await nuevo_voz(cat_linux, f"🛠️ Ayuda Técnica {i}", user_limit=0)
-
-    # ---------------------------------------------------------------
-    # 5. Rol & Roll (rol Rol n Roll)
-    # ---------------------------------------------------------------
-    cat_rol = await nueva_categoria("🎲 Rol & Roll", overwrites_con_rol(rol_rol))
-    await nuevo_texto(cat_rol, "📜 reglas-de-mesa", "Normas para las partidas.")
-    await nuevo_texto(cat_rol, "🧙 presentación-de-personajes", "Presenta a tu personaje.")
-    await nuevo_texto(cat_rol, "🎲 general-rol-n-roll", "Charla general de rol.")
-    await nuevo_texto(cat_rol, "🖼️ media-rol-n-roll", "Imágenes y recursos de rol.")
-    await nuevo_texto(cat_rol, "🗂️ organizar-party", "Busca grupo para tu próxima partida.")
-    await nuevo_texto(cat_rol, "😂 memes-rol", "Humor de mesa.")
-    await nuevo_texto(cat_rol, "🃏 otros-juegos-de-rol", "Otros sistemas y juegos de rol.")
-
-    # ---------------------------------------------------------------
-    # 6. VC Rol & Roll (rol Rol n Roll)
-    # ---------------------------------------------------------------
-    cat_vc_rol = await nueva_categoria("🔊 VC Rol & Roll", overwrites_con_rol(rol_rol))
-    for i in range(1, 6):
-        await nuevo_voz(cat_vc_rol, f"🎲 Mesa {i}", user_limit=5)
-
-    # ---------------------------------------------------------------
-    # 7. Arte y Cultura (rol Arte y Filosofía)
-    # ---------------------------------------------------------------
-    cat_arte = await nueva_categoria("🎨 Arte y Cultura", overwrites_con_rol(rol_arte))
-    await nuevo_texto(cat_arte, "🎨 general-arte-y-cultura", "Charla general de arte y filosofía.")
-    await nuevo_texto(cat_arte, "🎵 música", "Comparte y discute música.")
-    await nuevo_texto(cat_arte, "🖼️ media-arte-y-cultura", "Imágenes y recursos culturales.")
-    await nuevo_texto(cat_arte, "😂 memes-arte-y-cultura", "Humor artístico.")
-    await nuevo_texto(cat_arte, "📚 tu-biblioteca", "Recomendaciones y reseñas.")
-    await nuevo_texto(cat_arte, "🖌️ tus-dibujos", "Comparte tus dibujos.")
-    await nuevo_texto(cat_arte, "🗳️ votar-dibujos", "Vota el mejor dibujo de la semana.")
-
-    # ---------------------------------------------------------------
-    # 8. VIP Espectros (rol Espectros) — categoría propia, antes de Moderación
-    # ---------------------------------------------------------------
-    cat_vip = await nueva_categoria("👁️ VIP Espectros", overwrites_con_rol(rol_espectros))
-    await nuevo_texto(cat_vip, "🛋️ sala-privada", "Solo para Espectros.")
-
-    # ---------------------------------------------------------------
-    # 9. Moderación (solo staff)
-    # ---------------------------------------------------------------
-    mod_overwrites = {
-        everyone: discord.PermissionOverwrite(view_channel=False),
-    }
-    for sr in staff_roles:
-        mod_overwrites[sr] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
-
-    cat_mod = await nueva_categoria("🛡️ Moderación", mod_overwrites)
-    await nuevo_texto(cat_mod, "📋 mod-logs", "Registro automático de acciones de moderación.")
-    await nuevo_texto(cat_mod, "🚨 reportes", "Reportes de usuarios.")
-    await nuevo_texto(cat_mod, "🗣️ chat-staff", "Discusión interna del staff.")
-    await nuevo_texto(cat_mod, "⚖️ sanciones", "Registro de warns, mutes y bans.")
-
-    print("✅ Todos los canales fueron creados.\n")
-    return ids_canales
+    reporte.append(f"   🔇 Roles de autorol puestos como no-mencionables: {encontrados}/{len(ROLES_AUTOROL_TODOS)}")
+    if no_encontrados:
+        reporte.append(f"   ⚠️ No se encontraron estos roles (revisa nombres): {', '.join(no_encontrados)}")
 
 
 # =========================================================================
-# 🏁 EJECUCIÓN PRINCIPAL
+# 🏁 COMANDO PRINCIPAL
 # =========================================================================
 
 @client.event
@@ -410,12 +238,11 @@ async def on_ready():
     print(f"🔌 Conectado como {client.user}")
     tree.copy_global_to(guild=MY_GUILD)
     await tree.sync(guild=MY_GUILD)
-    print("🏛️ Comando /setup sincronizado. Esperando ejecución manual desde Discord...")
+    print("🔧 Comando /ajustar sincronizado. Esperando ejecución manual desde Discord...")
 
 
-@tree.command(name="setup", description="[SOLO DUEÑO] Borra y recrea TODA la estructura del servidor. Irreversible.")
-async def setup(interaction: discord.Interaction):
-    # --- Restricción dura: solo el dueño puede ejecutar esto ---
+@tree.command(name="ajustar", description="[SOLO DUEÑO] Refuerza permisos de canales y bloquea menciones de autoroles.")
+async def ajustar(interaction: discord.Interaction):
     if interaction.user.id != ID_DUEÑO:
         await interaction.response.send_message(
             "❌ No tienes autorización para ejecutar este comando.", ephemeral=True
@@ -430,68 +257,64 @@ async def setup(interaction: discord.Interaction):
         return
 
     await interaction.response.send_message(
-        "⚠️ **Iniciando setup destructivo.** Esto va a borrar todos los roles y todos los canales "
-        "dentro de categorías, y luego recrear todo de cero. Revisa la consola/logs de Railway "
-        "para ver el progreso y los IDs finales.",
+        "🔧 **Ajustando permisos...** Esto puede tomar un momento. Revisa la consola/logs "
+        "de Railway para ver el detalle completo.",
         ephemeral=True
     )
 
-    print(f"\n⚠️ /setup ejecutado por {interaction.user} (ID: {interaction.user.id})")
-    print(f"Esto va a BORRAR todos los roles y todos los canales dentro de categorías")
-    print(f"en '{guild.name}'. Esta acción es IRREVERSIBLE.\n")
+    reporte = []
+    print(f"\n🔧 /ajustar ejecutado por {interaction.user} (ID: {interaction.user.id})\n")
 
-    await limpiar_servidor(guild)
-    roles = await crear_roles(guild)
-    canales = await crear_canales(guild, roles)
+    # --- 1. Canales totalmente blindados ---
+    print("🔒 Aplicando blindaje total...")
+    for nombre in CANALES_BLINDADOS:
+        canal = buscar_canal(guild, nombre)
+        if canal:
+            await aplicar_blindaje_total(canal, guild, reporte)
+        else:
+            reporte.append(f"   ⚠️ No se encontró el canal: {nombre}")
 
-    # --- Reordenar jerarquía de roles ---
-    print("📊 Reordenando jerarquía de roles...")
-    try:
-        posiciones = {}
-        orden_deseado = (
-            [nombre for nombre, _, _ in ROLES_JERARQUIA] +
-            [f"Nivel {n}" for n, _ in reversed(ROLES_NIVEL_DEF)] +
-            [ROL_HABITANTE]
-        )
-        posicion_actual = len(guild.roles)
-        for nombre in orden_deseado:
-            if nombre in roles:
-                posiciones[roles[nombre]] = posicion_actual
-                posicion_actual -= 1
-        await guild.edit_role_positions(positions=posiciones)
-        print("✅ Jerarquía reordenada.\n")
-    except discord.HTTPException as e:
-        print(f"⚠️ No se pudo reordenar automáticamente la jerarquía: {e}")
-        print("   Puedes reordenarla manualmente arrastrando los roles en la configuración del servidor.\n")
+    # --- 2. Canales de votación (blindados pero con reacciones) ---
+    print("🗳️ Aplicando blindaje de votación...")
+    for nombre in CANALES_VOTACION:
+        canal = buscar_canal(guild, nombre)
+        if canal:
+            await aplicar_blindaje_votacion(canal, guild, reporte)
+        else:
+            reporte.append(f"   ⚠️ No se encontró el canal: {nombre}")
 
-    # --- IMPRESIÓN FINAL DE IDs (en consola/logs de Railway) ---
+    # --- 3. Bloquear hilos en TODOS los demás canales de texto ---
+    print("🧵 Bloqueando hilos en el resto de canales...")
+    nombres_ya_procesados = set(CANALES_BLINDADOS + CANALES_VOTACION)
+    for canal in guild.text_channels:
+        if canal.name in nombres_ya_procesados:
+            continue  # ya se les aplicó una política más estricta arriba
+        await bloquear_hilos_generales(canal, guild, reporte)
+
+    # --- 4. Acceso por nivel (#selfies y #memes) ---
+    print("📊 Ajustando acceso por nivel...")
+    await ajustar_acceso_por_nivel(guild, reporte)
+
+    # --- 5. Mentionable=False en autoroles ---
+    print("🔇 Bloqueando menciones de autoroles...")
+    await quitar_mentionable_autoroles(guild, reporte)
+
+    # --- Reporte final en consola ---
     print("\n" + "=" * 60)
-    print("🎉 SETUP COMPLETADO")
+    print("🎉 /ajustar COMPLETADO — RESUMEN")
     print("=" * 60)
-
-    print("\n📋 IDs de Canales y Categorías:")
-    for nombre, id_ in canales.items():
-        print(f"{id_} ---- {nombre}")
-
-    print("\n👥 IDs de Roles:")
-    for nombre, rol in roles.items():
-        print(f"{rol.id} ---- {nombre}")
-
-    print("\n💾 JSON para copiar a un archivo local:")
-    datos = {
-        "canales": canales,
-        "roles": {nombre: rol.id for nombre, rol in roles.items()},
-    }
-    print(json.dumps(datos, indent=2, ensure_ascii=False))
+    for linea in reporte:
+        print(linea)
+    print("=" * 60 + "\n")
 
     try:
         await interaction.followup.send(
-            "✅ **Setup completado.** Revisa los logs de Railway para copiar todos los IDs "
-            "(canales y roles) en formato `<ID> ---- Nombre`, más el JSON completo.",
+            "✅ **Ajustes completados.** Revisa los logs de Railway para ver el resumen "
+            "detallado de qué se aplicó y si algo no se encontró.",
             ephemeral=True
         )
     except discord.HTTPException:
-        pass  # si el token de interacción ya expiró (proceso muy largo), no pasa nada; ya quedó en logs
+        pass
 
 
 def main():
