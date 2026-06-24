@@ -1,15 +1,15 @@
 # =========================================================================
-# 🌌 SANTUARI CORE — MOTOR PRINCIPAL DEL IMPERIO (Fase 2 - Versión Final V3.1)
+# 🌌 SANTUARI CORE — MOTOR PRINCIPAL DEL IMPERIO (Fase 2 - Versión Final V3.2)
 # =========================================================================
 # SISTEMAS INTEGRADOS:
 # - MongoDB (motor asíncrono) para persistencia total.
 # - Niveles Exponenciales y auto-asignación de roles de Nivel (10, 20...).
-# - Economía (🪙), Top, Perfil, Donar, Robar, Imprimir Dinero (Owner).
+# - Economía (🪙), Top, Perfil, Transferir, Robar, Imprimir Dinero (Owner).
 # - Tienda y Objetos (Amuleto de la Suerte, Mutes, Emojis).
 # - Casino (Ruleta, Dados encriptados).
 # - Moderación (Kick, Ban, Timeout, Warn, Purge) y Starboard (Corregido).
 # - Sistema de Autoroles Interactivos y Asignación de Roles por Lotes.
-# - Eventos de "Lluvia de Monedas" con Botón Anti-Spam / Anti-Lag.
+# - Eventos de "Lluvia de Monedas" con Botón Anti-Spam / Anti-Lag al 6%.
 # =========================================================================
 
 import discord
@@ -182,8 +182,9 @@ class ReclamarDrop(discord.ui.View):
 async def on_message(message: discord.Message):
     if message.author.bot or not message.guild: return
 
-    if random.random() < 0.03:
-        print(f"[LOG EVENTO] Generando drop aleatorio de monedas (3%) en #{message.channel.name}")
+    # PROBABILIDAD DE DROP EN 6% ASIGNADA
+    if random.random() < 0.06:
+        print(f"[LOG EVENTO] Generando drop aleatorio de monedas (6%) en #{message.channel.name}")
         embed = discord.Embed(
             title="🎁 ¡Lluvia de Monedas!", 
             description="Un cargamento de 🪙 **300 Monedas** ha caído del cielo. ¡Sé el primero en presionar el botón!", 
@@ -332,6 +333,32 @@ async def perfil(interaction: discord.Interaction, usuario: discord.Member = Non
     if inventario:
         embed.add_field(name="🎒 Inventario", value="\n".join(inventario), inline=False)
 
+    await interaction.response.send_message(embed=embed)
+
+@client.tree.command(name="transferir", description="Transfiere monedas de tu bóveda a otro usuario.")
+async def transferir(interaction: discord.Interaction, usuario: discord.Member, cantidad: int):
+    if usuario.bot or usuario == interaction.user:
+        return await interaction.response.send_message("❌ Operación financiera inválida. No puedes transferirte a ti mismo ni a inteligencias artificiales.", ephemeral=True)
+    
+    if cantidad <= 0:
+        return await interaction.response.send_message("❌ La cantidad a transferir debe ser mayor a 0.", ephemeral=True)
+        
+    data_emisor = await get_user_data(interaction.user.id)
+    
+    if data_emisor["monedas"] < cantidad:
+        return await interaction.response.send_message("❌ Fondos insuficientes en tu bóveda para completar la transacción.", ephemeral=True)
+        
+    await get_user_data(usuario.id) # Asegura la existencia del receptor en la DB
+    
+    await update_user(interaction.user.id, {"$inc": {"monedas": -cantidad}})
+    await update_user(usuario.id, {"$inc": {"monedas": cantidad}})
+    
+    print(f"[LOG ECON] {interaction.user} transfirió {cantidad} monedas a {usuario}")
+    
+    embed = discord.Embed(
+        description=f"💸 **{interaction.user.display_name}** ha transferido exitosamente 🪙 **{cantidad}** monedas a la cuenta de {usuario.mention}.",
+        color=0x2ECC71
+    )
     await interaction.response.send_message(embed=embed)
 
 @client.tree.command(name="tienda", description="Abre la tienda del Imperio.")
@@ -525,7 +552,6 @@ async def mute(interaction: discord.Interaction, usuario: discord.Member, minuto
 
 @client.tree.command(name="castigar", description="Gasta un Tóken de Muteo para silenciar a alguien por 5 minutos.")
 async def castigar(interaction: discord.Interaction, victima: discord.Member):
-    # IDs de los roles VIP a los que se les retira la inmunidad
     ROLES_VULNERABLES = [
         1518762564660498574,
         1518762566501924996,
@@ -535,7 +561,6 @@ async def castigar(interaction: discord.Interaction, victima: discord.Member):
     
     tiene_rol_vulnerable = any(rol.id in ROLES_VULNERABLES for rol in victima.roles)
 
-    # El bot ignorará la inmunidad de administrador si la víctima tiene un rol vulnerable
     if victima.bot or (victima.guild_permissions.administrator and not tiene_rol_vulnerable):
         return await interaction.response.send_message("❌ No puedes mutear a esta entidad.", ephemeral=True)
         
