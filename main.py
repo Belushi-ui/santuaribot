@@ -118,12 +118,13 @@ class SantuariBot(discord.Client):
         
         guild = discord.Object(id=ID_SERVIDOR)
         
-        # 🧹 LIMPIEZA TOTAL Y SINCRONIZACIÓN LOCAL DIRECTA
-        self.tree.clear_commands(guild=guild)
-        print("[LOG CORE] Caché de comandos local limpiada.")
+        # 1. Copiamos los comandos registrados globalmente en el código hacia tu servidor
+        self.tree.copy_global_to(guild=guild)
         
+        # 2. Sincronizamos el servidor local. Esto sobreescribe la lista vieja y elimina duplicados
         await self.tree.sync(guild=guild)
-        print("🏛️ [LOG CORE] Santuari Core cargado con éxito. Base de datos conectada y comandos sincronizados localmente.")
+        
+        print("🏛️ [LOG CORE] Santuari Core cargado. ¡Comandos sincronizados de forma limpia y duplicados eliminados!")
 
 client = SantuariBot()
 
