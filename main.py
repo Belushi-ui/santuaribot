@@ -6,7 +6,7 @@
 # - Niveles Exponenciales y auto-asignación de roles de Nivel (10, 20...).
 # - Economía (🪙), Top, Perfil, Donar, Robar, Imprimir Dinero (Owner).
 # - Tienda y Objetos (Amuleto de la Suerte, Mutes, Emojis).
-# - Casino (Ruleta y Blackjack interactivo reparado, Dados encriptados).
+# - Casino (Ruleta, Dados encriptados).
 # - Moderación (Kick, Ban, Timeout, Warn, Purge) y Starboard (Corregido).
 # - Sistema de Autoroles Interactivos y Asignación de Roles por Lotes.
 # - Eventos de "Lluvia de Monedas" con Botón Anti-Spam / Anti-Lag.
@@ -56,7 +56,7 @@ ROLES_REACCION = {
     "💗": 151876200781975735,   # Bisexual
     "💙": 1518762601587150918,  # Gay
     "🖤": 1518762604250660884,  # Asexual
-    "🤎": 1518762604930138295,  # Alosexual
+    "🤎": 1518762604930138295,  # Alorromántico
 
     # 🌍 Región
     "🦅": 1518762595744481301,  # Norteamérica
@@ -86,7 +86,7 @@ ROLES_REACCION = {
     "🌸": 1518762587741880361,  # Rosa
     "⚪": 1518762588937126068,  # Marfil
     "⚫": 1518762589709013052,  # Obsidiana
-    "🧊": 1518762590275371040,  # Celeste
+    "🧊": 1518762502753710400,  # Celeste
 
     # 🕯️ Nichos
     "🐧": 1518762610353246290,  # Linux & Coding
@@ -117,9 +117,13 @@ class SantuariBot(discord.Client):
         self.starboard = self.db.starboard
         
         guild = discord.Object(id=ID_SERVIDOR)
-        self.tree.copy_global_to(guild=guild)
+        
+        # 🧹 LIMPIEZA TOTAL Y SINCRONIZACIÓN LOCAL DIRECTA
+        self.tree.clear_commands(guild=guild)
+        print("[LOG CORE] Caché de comandos local limpiada.")
+        
         await self.tree.sync(guild=guild)
-        print("🏛️ [LOG CORE] Santuari Core cargado con éxito. Base de datos conectada y comandos sincronizados.")
+        print("🏛️ [LOG CORE] Santuari Core cargado con éxito. Base de datos conectada y comandos sincronizados localmente.")
 
 client = SantuariBot()
 
@@ -151,99 +155,15 @@ def calcular_xp_requerida(nivel: int):
 # 🎰 VISTAS INTERACTIVAS Y SISTEMA ANTI-LAG DE DROPS
 # =========================================================================
 
-def carta_aleatoria():
-    cartas = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]
-    return random.choice(cartas)
-
-def puntaje_mano(mano):
-    total = sum(mano)
-    ases = mano.count(11)
-    while total > 21 and ases:
-        total -= 10
-        ases -= 1
-    return total
-
-class BlackjackView(discord.ui.View):
-    def __init__(self, jugador, apuesta, data_jugador):
-        super().__init__(timeout=60)
-        self.jugador = jugador
-        self.apuesta = apuesta
-        self.data_jugador = data_jugador
-        self.mano_jugador = [carta_aleatoria(), carta_aleatoria()]
-        self.mano_dealer = [carta_aleatoria(), carta_aleatoria()]
-
-    async def actualizar_embed(self, interaction: discord.Interaction, finalizado=False):
-        pts_jugador = puntaje_mano(self.mano_jugador)
-        pts_dealer = puntaje_mano(self.mano_dealer)
-        
-        embed = discord.Embed(title="🃏 Blackjack", color=0x2E86C1)
-        embed.add_field(name=f"Tu mano ({pts_jugador})", value=f"{self.mano_jugador}", inline=False)
-        
-        if finalizado:
-            embed.add_field(name=f"Mano del Croupier ({pts_dealer})", value=f"{self.mano_dealer}", inline=False)
-            ganancia = 0
-            amuleto_usado = False
-            
-            if pts_jugador > 21:
-                if self.data_jugador.get("amuleto"):
-                    embed.description = "💥 Te pasaste de 21, pero tu **Amuleto de la Suerte** se rompió protegiendo tu apuesta."
-                    amuleto_usado = True
-                else:
-                    embed.description = f"💥 Te pasaste de 21. Perdiste 🪙 **{self.apuesta}**."
-                    await update_user(self.jugador.id, {"$inc": {"monedas": -self.apuesta}})
-            elif pts_dealer > 21 or pts_jugador > pts_dealer:
-                ganancia = self.apuesta
-                embed.description = f"🎉 ¡Ganaste! Recibes 🪙 **{ganancia}**."
-                await update_user(self.jugador.id, {"$inc": {"monedas": ganancia}})
-            elif pts_jugador == pts_dealer:
-                embed.description = "🤝 Empate. Recuperas tu apuesta."
-            else:
-                if self.data_jugador.get("amuleto"):
-                    embed.description = "El Croupier gana, pero tu **Amuleto de la Suerte** absorbe la pérdida."
-                    amuleto_usado = True
-                else:
-                    embed.description = f"💸 El Croupier gana. Perdiste 🪙 **{self.apuesta}**."
-                    await update_user(self.jugador.id, {"$inc": {"monedas": -self.apuesta}})
-            
-            if amuleto_usado:
-                await update_user(self.jugador.id, {"$set": {"amuleto": False}})
-                
-        else:
-            embed.add_field(name="Mano del Croupier", value=f"[{self.mano_dealer[0]}, ?]", inline=False)
-
-        if interaction.response.is_done():
-            await interaction.message.edit(embed=embed, view=None if finalizado else self)
-        else:
-            await interaction.response.edit_message(embed=embed, view=None if finalizado else self)
-
-    @discord.ui.button(label="Pedir Carta (Hit)", style=discord.ButtonStyle.primary, custom_id="hit")
-    async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.jugador: return
-        self.mano_jugador.append(carta_aleatoria())
-        if puntaje_mano(self.mano_jugador) > 21:
-            await self.actualizar_embed(interaction, finalizado=True)
-        else:
-            await self.actualizar_embed(interaction)
-
-    @discord.ui.button(label="Plantarse (Stand)", style=discord.ButtonStyle.danger, custom_id="stand")
-    async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.jugador: return
-        while puntaje_mano(self.mano_dealer) < 17:
-            self.mano_dealer.append(carta_aleatoria())
-        await self.actualizar_embed(interaction, finalizado=True)
-
-
 class ReclamarDrop(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
     
     @discord.ui.button(label="¡Reclamar!", style=discord.ButtonStyle.success, emoji="🪙", custom_id="claim_drop_btn")
     async def reclamar(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 🛡️ BLOQUEO INMEDIATO ANTI-LAG: Deshabilitamos el botón antes de procesar la DB
         self.reclamar.disabled = True
-        self.stop() # Detiene la escucha de interacciones de esta vista en memoria
+        self.stop() 
         
-        # Inyección económica (300 monedas)
         await update_user(interaction.user.id, {"$inc": {"monedas": 300}})
         print(f"[LOG DROP] {interaction.user} reclamó exitosamente el drop aleatorio de 300 monedas. Botón bloqueado.")
         
@@ -251,7 +171,6 @@ class ReclamarDrop(discord.ui.View):
             description=f"🎉 ¡{interaction.user.mention} fue el más rápido y reclamó las **300 🪙**!", 
             color=0xF1C40F
         )
-        # Editamos el mensaje removiendo la vista por completo para asegurar el cierre
         await interaction.response.edit_message(embed=embed, view=None)
 
 # =========================================================================
@@ -262,7 +181,6 @@ class ReclamarDrop(discord.ui.View):
 async def on_message(message: discord.Message):
     if message.author.bot or not message.guild: return
 
-    # 1. Drop Aleatorio Ajustado: 3% de probabilidad, otorga 300 Monedas
     if random.random() < 0.03:
         print(f"[LOG EVENTO] Generando drop aleatorio de monedas (3%) en #{message.channel.name}")
         embed = discord.Embed(
@@ -272,7 +190,6 @@ async def on_message(message: discord.Message):
         )
         await message.channel.send(embed=embed, view=ReclamarDrop())
 
-    # 2. Sistema de Experiencia
     ahora = time.time()
     ultimo_mensaje = client.cooldowns_xp.get(message.author.id, 0)
     
@@ -307,7 +224,6 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     if payload.user_id == client.user.id:
         return
 
-    # 1. SISTEMA DE AUTOROLES
     if payload.channel_id == ID_CANAL_AUTOROLES:
         guild = client.get_guild(payload.guild_id)
         if not guild: return
@@ -324,7 +240,6 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
                         pass
         return 
 
-    # 2. SISTEMA DE STARBOARD (Sólido y Corregido contra fallos de caché)
     if payload.emoji.name == "⭐":
         guild = client.get_guild(payload.guild_id)
         if not guild: return
@@ -333,10 +248,9 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         if not canal: return
         
         try:
-            # fetch_message es asíncrono y busca en la API directamente si no está en la caché interna
             mensaje = await canal.fetch_message(payload.message_id)
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-            return # El mensaje fue eliminado o el bot no tiene acceso al canal histórico
+            return 
         
         reaccion_estrella = discord.utils.get(mensaje.reactions, emoji="⭐")
         if not reaccion_estrella or reaccion_estrella.count < 3: return
@@ -359,7 +273,6 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
                 await msg_sb.edit(content=contenido_msg, embed=embed)
                 print(f"[LOG STARBOARD] Mensaje {mensaje.id} actualizado con {reaccion_estrella.count} estrellas.")
             except discord.NotFound:
-                # Si el mensaje en el canal de starboard fue borrado manualmente, lo recreamos
                 msg_sb = await canal_starboard.send(content=contenido_msg, embed=embed)
                 await client.starboard.update_one({"msg_id": mensaje.id}, {"$set": {"sb_msg_id": msg_sb.id}})
             except Exception:
@@ -463,7 +376,6 @@ async def comprar(interaction: discord.Interaction, item: app_commands.Choice[st
 @client.tree.command(name="gamble", description="Prueba tu suerte en los juegos de azar del Imperio.")
 @app_commands.choices(juego=[
     app_commands.Choice(name="Ruleta (50/50)", value="ruleta"),
-    app_commands.Choice(name="Blackjack", value="blackjack"),
     app_commands.Choice(name="Dados: Mayor que 7 (50/50)", value="dados_mayor"),
     app_commands.Choice(name="Dados: Predecir Número Exacto (Pago 3x)", value="dados_exacto")
 ])
@@ -500,15 +412,9 @@ async def gamble(
             else:
                 await update_user(interaction.user.id, {"$inc": {"monedas": -apuesta}})
                 await interaction.response.send_message(f"🎰 La ruleta giró y PERDISTE. Se te han restado 🪙 **{apuesta}**.")
-                
-    # --- JUEGO 2: BLACKJACK INTERACTIVO ---
-    elif juego.value == "blackjack":
-        vista = BlackjackView(interaction.user, apuesta, data)
-        await vista.actualizar_embed(interaction)
 
-    # --- JUEGO 3: DADOS MAYOR QUE 7 (50/50 - ALEATORIEDAD MEJORADA CRIPTOGRÁFICA) ---
+    # --- JUEGO 2: DADOS MAYOR QUE 7 (50/50) ---
     elif juego.value == "dados_mayor":
-        # Usamos secrets.choice para máxima aleatoriedad basada en la entropía del SO
         dado1 = secrets.choice(range(1, 7))
         dado2 = secrets.choice(range(1, 7))
         suma = dado1 + dado2
@@ -532,7 +438,7 @@ async def gamble(
                 
         await interaction.response.send_message(embed=embed)
 
-    # --- JUEGO 4: DADOS NÚMERO EXACTO (Pago 3x) ---
+    # --- JUEGO 3: DADOS NÚMERO EXACTO (Pago 3x) ---
     elif juego.value == "dados_exacto":
         if not prediccion_numero:
             return await interaction.response.send_message("❌ Para jugar a este modo debes elegir un número del 1 al 6 usando el parámetro opcional `prediccion_numero`.", ephemeral=True)
@@ -614,12 +520,23 @@ async def mute(interaction: discord.Interaction, usuario: discord.Member, minuto
     duracion = discord.utils.utcnow() + timedelta(minutes=minutos)
     await usuario.timeout(duracion, reason=razon)
     await registrar_sancion(interaction.guild, "🔇 Usuario Muteado", 0xF1C40F, interaction.user, usuario, f"{minutos} min - {razon}")
-    await interaction.response.send_message(f"✅ {usuario.mention} muteado por {minutos} minutes.", ephemeral=True)
+    await interaction.response.send_message(f"✅ {usuario.mention} muteado por {minutos} minutos.", ephemeral=True)
 
 @client.tree.command(name="castigar", description="Gasta un Tóken de Muteo para silenciar a alguien por 5 minutos.")
 async def castigar(interaction: discord.Interaction, victima: discord.Member):
-    if victima.bot or victima.guild_permissions.administrator:
-        return await interaction.response.send_message("❌ No puedes mutear a esa entidad.", ephemeral=True)
+    # IDs de los roles VIP a los que se les retira la inmunidad
+    ROLES_VULNERABLES = [
+        1518762564660498574,
+        1518762566501924996,
+        1518762567286264020,
+        1518762567793905821
+    ]
+    
+    tiene_rol_vulnerable = any(rol.id in ROLES_VULNERABLES for rol in victima.roles)
+
+    # El bot ignorará la inmunidad de administrador si la víctima tiene un rol vulnerable
+    if victima.bot or (victima.guild_permissions.administrator and not tiene_rol_vulnerable):
+        return await interaction.response.send_message("❌ No puedes mutear a esta entidad.", ephemeral=True)
         
     data = await get_user_data(interaction.user.id)
     if data.get("mutes_comprados", 0) <= 0:
@@ -629,9 +546,9 @@ async def castigar(interaction: discord.Interaction, victima: discord.Member):
     try:
         await victima.timeout(duracion, reason=f"Mute comprado por {interaction.user.display_name}")
         await update_user(interaction.user.id, {"$inc": {"mutes_comprados": -1}})
-        await interaction.response.send_message(f"💸 Has gastado un tóken. {victima.mention} ha sido silenciado por 5 minutos.")
+        await interaction.response.send_message(f"💸 Has gastado un tóken. {victima.mention} ha sido silenciado por 5 minutos. ¡Nadie es intocable!")
     except discord.Forbidden:
-        await interaction.response.send_message("❌ El bot no tiene permisos suficientes para mutear a esta persona.", ephemeral=True)
+        await interaction.response.send_message("❌ El bot no pudo aplicar el mute. Asegúrate de mover el rol de Santuari lo más arriba posible en la lista de jerarquías del servidor.", ephemeral=True)
 
 @client.tree.command(name="purge", description="[STAFF] Elimina una cantidad específica de mensajes.")
 @app_commands.default_permissions(manage_messages=True)
