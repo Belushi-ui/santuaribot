@@ -1,17 +1,3 @@
-# =========================================================================
-# 🌌 SANTUARI CORE — MOTOR PRINCIPAL DEL IMPERIO (Fase 2 - Versión Final V3.2)
-# =========================================================================
-# SISTEMAS INTEGRADOS:
-# - MongoDB (motor asíncrono) para persistencia total.
-# - Niveles Exponenciales y auto-asignación de roles de Nivel (10, 20...).
-# - Economía (🪙), Top, Perfil, Transferir, Robar, Imprimir Dinero (Owner).
-# - Tienda y Objetos (Amuleto de la Suerte, Mutes, Emojis).
-# - Casino (Ruleta, Dados encriptados).
-# - Moderación (Kick, Ban, Timeout, Warn, Purge) y Starboard (Corregido).
-# - Sistema de Autoroles Interactivos y Asignación de Roles por Lotes.
-# - Eventos de "Lluvia de Monedas" con Botón Anti-Spam / Anti-Lag al 6%.
-# =========================================================================
-
 import discord
 from discord import app_commands
 import motor.motor_asyncio
@@ -25,32 +11,31 @@ import secrets
 from datetime import timedelta
 
 # --- CONFIGURACIÓN DE IDs ---
-ID_SERVIDOR = 1517885569231749240
-ID_DUEÑO = 1360882776706125874
-ID_CANAL_STARBOARD = 1518814340919328858
-ID_CANAL_MODLOGS = 1518762621937909862 
-ID_CANAL_AUTOROLES = 1518804287835345198
+IDSERVIDOR = 1517885569231749240
+IDDUEÑO = 1360882776706125874
+IDCANALSTARBOARD = 1518814340919328858
+IDCANALMODLOGS = 1518762621937909862 
+IDCANALAUTOROLES = 1518804287835345198
 
-PRECIO_MUTE = 2000
-PRECIO_AMULETO = 1000
-PRECIO_EMOJI = 5000
-PRECIO_STICKER = 5000
+PRECIOMUTE = 2000
+PRECIOAMULETO = 1000
+PRECIOEMOJI = 5000
+PRECIOSTICKER = 5000
 
-# Diccionario Global de Emojis -> ID de Rol
-ROLES_REACCION = {
-    # 🧬 Géneros
+ROLES= {
+    # Géneros
     "👨": 1518762591340724374,  # Hombre
     "👩": 1518762591969743016,  # Mujer
     "🏳️‍⚧️": 1518762592917520535,  # Transgénero
     "🟡": 1518762594125615124,  # No binarie
     "❓": 1518762595086106766,  # Otro género
     
-    # 📢 Pronombres
+    # Pronombres
     "🔹": 1518762607400587325,  # She/Her
     "🔸": 1518762608159756392,  # He/Him
     "▫️": 1518762608688103627,  # They/Them
     
-    # ❤️ Orientación
+    # Orientación
     "🤍": 1518762598965973012,  # Heterosexual
     "🧡": 1518762599238467727,  # Lesbiana
     "💗": 151876200781975735,   # Bisexual
@@ -58,13 +43,13 @@ ROLES_REACCION = {
     "🖤": 1518762604250660884,  # Asexual
     "🤎": 1518762604930138295,  # Alorromántico
 
-    # 🌍 Región
+    # Región
     "🦅": 1518762595744481301,  # Norteamérica
     "🌎": 1518762596210053234,  # Sudamérica
     "🌍": 1518762597405560974,  # Europa
     "🌏": 1518762598261063840,  # Asia
 
-    # 📅 Edad
+    # Edad
     "🎒": 1518762613171818626,  # 14-17
     "🎓": 1518762613943701564,  # 18-25
     "💼": 1518762614749008003,  # 26+
@@ -76,7 +61,7 @@ ROLES_REACCION = {
     "⌨️": 1518762615801909369,  # Programador
     "📚": 1518762617542414661,  # Seudo Filósofo
 
-    # 🎨 Colores
+    # Colores
     "🔴": 1518762581257617602,  # Carmesí
     "🟠": 1518762582578692137,  # Ámbar
     "🟨": 1518762584151560325,  # Dorado
@@ -88,7 +73,7 @@ ROLES_REACCION = {
     "⚫": 1518762589709013052,  # Obsidiana
     "🧊": 1518762502753710400,  # Celeste
 
-    # 🕯️ Nichos
+    # Nichos
     "🐧": 1518762610353246290,  # Linux & Coding
     "🐉": 1518762612417101824,  # Rol & Roll
     "🎨": 1518762611427250378,  # Arte y Filosofia
@@ -117,21 +102,15 @@ class SantuariBot(discord.Client):
         self.starboard = self.db.starboard
         
         guild = discord.Object(id=ID_SERVIDOR)
-        
-        # 1. Copiamos los comandos registrados globalmente en el código hacia tu servidor
         self.tree.copy_global_to(guild=guild)
         
-        # 2. Sincronizamos el servidor local. Esto sobreescribe la lista vieja y elimina duplicados
         await self.tree.sync(guild=guild)
         
         print("🏛️ [LOG CORE] Santuari Core cargado. ¡Comandos sincronizados de forma limpia y duplicados eliminados!")
 
 client = SantuariBot()
 
-# =========================================================================
-# 🗄️ FUNCIONES DE BASE DE DATOS Y LÓGICA CORE
-# =========================================================================
-
+#FUNCIONES DE BASE DE DATOS Y LÓGICA CORE
 async def get_user_data(user_id: int):
     data = await client.db_users.find_one({"_id": user_id})
     if not data:
@@ -152,10 +131,7 @@ async def update_user(user_id: int, query: dict):
 def calcular_xp_requerida(nivel: int):
     return int(100 * (nivel ** 1.5))
 
-# =========================================================================
-# 🎰 VISTAS INTERACTIVAS Y SISTEMA ANTI-LAG DE DROPS
-# =========================================================================
-
+#🎰 VISTAS INTERACTIVAS Y SISTEMA ANTI-LAG DE DROPS
 class ReclamarDrop(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
@@ -174,15 +150,10 @@ class ReclamarDrop(discord.ui.View):
         )
         await interaction.response.edit_message(embed=embed, view=None)
 
-# =========================================================================
-# 📩 EVENTOS DEL SERVIDOR (Mensajes, XP, Autoroles, Starboard)
-# =========================================================================
-
+#EVENTOS DEL SERVIDOR (Mensajes, XP, Autoroles, Starboard)
 @client.event
 async def on_message(message: discord.Message):
     if message.author.bot or not message.guild: return
-
-    # PROBABILIDAD DE DROP EN 6% ASIGNADA
     if random.random() < 0.06:
         print(f"[LOG EVENTO] Generando drop aleatorio de monedas (6%) en #{message.channel.name}")
         embed = discord.Embed(
@@ -301,9 +272,7 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
                     except discord.Forbidden:
                         pass
 
-# =========================================================================
-# 🛍️ COMANDOS DE ECONOMÍA Y DIVERSIÓN
-# =========================================================================
+#COMANDOS DE ECONOMÍA Y DIVERSIÓN
 
 @client.tree.command(name="perfil", description="Muestra tu nivel y balance financiero.")
 async def perfil(interaction: discord.Interaction, usuario: discord.Member = None):
@@ -428,7 +397,7 @@ async def gamble(
     if data["monedas"] < apuesta:
         return await interaction.response.send_message("❌ No cuentas con suficientes monedas in tu bóveda.", ephemeral=True)
 
-    # --- JUEGO 1: RULETA TRADICIONAL ---
+    #RULETA TRADICIONAL
     if juego.value == "ruleta":
         if random.choice([True, False]):
             await update_user(interaction.user.id, {"$inc": {"monedas": apuesta}})
@@ -441,7 +410,7 @@ async def gamble(
                 await update_user(interaction.user.id, {"$inc": {"monedas": -apuesta}})
                 await interaction.response.send_message(f"🎰 La ruleta giró y PERDISTE. Se te han restado 🪙 **{apuesta}**.")
 
-    # --- JUEGO 2: DADOS MAYOR QUE 7 (50/50) ---
+    #DADOS MAYOR QUE 7
     elif juego.value == "dados_mayor":
         dado1 = secrets.choice(range(1, 7))
         dado2 = secrets.choice(range(1, 7))
@@ -466,7 +435,7 @@ async def gamble(
                 
         await interaction.response.send_message(embed=embed)
 
-    # --- JUEGO 3: DADOS NÚMERO EXACTO (Pago 3x) ---
+    #DADOS NÚMERO EXACTO
     elif juego.value == "dados_exacto":
         if not prediccion_numero:
             return await interaction.response.send_message("❌ Para jugar a este modo debes elegir un número del 1 al 6 usando el parámetro opcional `prediccion_numero`.", ephemeral=True)
@@ -517,10 +486,8 @@ async def robar(interaction: discord.Interaction, victima: discord.Member):
         multa = 500
         await update_user(interaction.user.id, {"$inc": {"monedas": -multa}})
         await interaction.response.send_message(f"🚔 ¡Te han atrapado! Pagas una multa de 🪙 **{multa}**.")
-
-# =========================================================================
-# 🛡️ MODERACIÓN Y COMANDOS VIP
-# =========================================================================
+        
+# MODERACIÓN Y COMANDOS VIP
 
 async def registrar_sancion(guild: discord.Guild, titulo: str, color: int, moderador: discord.Member, victima: discord.Member, razon: str):
     canal = guild.get_channel(ID_CANAL_MODLOGS)
@@ -586,9 +553,7 @@ async def purge(interaction: discord.Interaction, cantidad: int):
     eliminados = await interaction.channel.purge(limit=cantidad)
     await interaction.followup.send(f"🧹 Se han eliminado **{len(eliminados)}** mensajes correctamente.")
 
-# =========================================================================
-# ⚙️ COMANDOS EXCLUSIVOS DEL DUEÑO
-# =========================================================================
+# COMANDOS EXCLUSIVOS DEL DUEÑO
 
 @client.tree.command(name="imprimir_dinero", description="[OWNER] Genera e inyecta monedas de la nada en las arcas de un usuario.")
 async def imprimir_dinero(interaction: discord.Interaction, usuario: discord.Member, cantidad: int):
@@ -677,10 +642,6 @@ async def dar_rol_multi(interaction: discord.Interaction, rol: discord.Role, usu
         embed.add_field(name=f"Errores encontrados ({len(errores)})", value="\n".join(errores)[:1024], inline=False)
     
     await interaction.followup.send(embed=embed)
-
-# =========================================================================
-# 🏁 ARRANQUE DE MOTOR
-# =========================================================================
 
 if __name__ == "__main__":
     client.run(os.environ["DISCORD_TOKEN"])
